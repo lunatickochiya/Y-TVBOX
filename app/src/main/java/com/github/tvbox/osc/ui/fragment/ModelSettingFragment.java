@@ -3,6 +3,7 @@ package com.github.tvbox.osc.ui.fragment;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
@@ -148,7 +149,9 @@ public class ModelSettingFragment extends BaseLazyFragment {
         tvBootLive = findViewById(R.id.tvBootLive);
         tvBootLive.setText(Hawk.get(HawkConfig.BOOT_START_LIVE, false) ? "开启" : "关闭");
         tvBootPerm = findViewById(R.id.tvBootPerm);
-        tvBootPerm.setText(Settings.canDrawOverlays(mActivity) ? "已授权" : "未授权");
+        boolean overlayGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                || Settings.canDrawOverlays(mActivity);
+        tvBootPerm.setText(overlayGranted ? "已授权" : "未授权");
 
         //takagen99 : Set HomeApi as default
         findViewById(R.id.llHomeApi).requestFocus();
@@ -833,7 +836,9 @@ public class ModelSettingFragment extends BaseLazyFragment {
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
-                if (!Settings.canDrawOverlays(mActivity)) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                    Toast.makeText(mActivity, "当前系统无需授权", Toast.LENGTH_SHORT).show();
+                } else if (!Settings.canDrawOverlays(mActivity)) {
                     try {
                         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:" + mActivity.getPackageName()));
