@@ -19,13 +19,13 @@ object JavaUtil {
             if (channelItem == null) null else it.groupIndex to channelItem.channelIndex
         } ?: let {
             var noPassWordGroupIndex = -1
-            liveChannelGroupList.forEach {
-                it.liveChannels.forEach { liceChannel ->
-                    if (liceChannel.channelName == lastChannelName) {
-                        return it.groupIndex to liceChannel.channelIndex
+            for (group in liveChannelGroupList) {
+                for (liveChannel in group.liveChannels) {
+                    if (liveChannel.channelName == lastChannelName) {
+                        return group.groupIndex to liveChannel.channelIndex
                     }
-                    if (noPassWordGroupIndex == -1 && it.groupPassword.isEmpty()) {
-                        noPassWordGroupIndex = it.groupIndex
+                    if (noPassWordGroupIndex == -1 && group.groupPassword.isEmpty()) {
+                        noPassWordGroupIndex = group.groupIndex
                     }
                 }
             }

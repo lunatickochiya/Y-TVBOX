@@ -1,6 +1,6 @@
 # Y-TVBOX
 
-Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox 同时安装。
+Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox 同时安装。通用 Java 版本最低支持 Android 4.4（API 19）；Python 版本因运行时限制仍要求 Android 5.0（API 21）。
 
 ## GitHub Release
 
@@ -11,7 +11,7 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
 - `YTVBOX_KEY_ALIAS`：签名别名
 - `YTVBOX_KEY_PASSWORD`：签名私钥密码
 
-请长期保存同一套签名密钥，否则已安装版本无法升级。
+Android 4.4 设备应安装文件名中带 `armeabi` 的 APK。请长期保存同一套签名密钥，否则已安装版本无法升级。
 
 === Source Code - Editing the app default settings ===
 /src/main/java/com/github/tvbox/osc/base/App.java

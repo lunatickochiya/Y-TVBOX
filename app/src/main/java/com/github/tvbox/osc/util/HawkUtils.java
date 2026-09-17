@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.util;
 
 import android.content.Context;
+import android.os.Build;
 
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 
@@ -108,6 +109,10 @@ public class HawkUtils {
      * @return int
      */
     public static int getExoRenderer() {
+        // The optional FFmpeg renderer ships native binaries built for API 21+.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return 0;
+        }
         return Hawk.get(HawkConfig.EXO_RENDERER, 0);
     }
 
@@ -130,7 +135,10 @@ public class HawkUtils {
         int renderer = getExoRenderer();
         switch (renderer) {
             case 1:
-                return new NextRenderersFactory(context);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    return new NextRenderersFactory(context);
+                }
+                return new DefaultRenderersFactory(context);
             case 0:
             default:
                 return new DefaultRenderersFactory(context);

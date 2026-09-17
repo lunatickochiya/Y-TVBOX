@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.github.tvbox.osc">
 
+    <uses-sdk tools:overrideLibrary="io.github.anilbeesetti.nextlib.media3ext" />
+
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />

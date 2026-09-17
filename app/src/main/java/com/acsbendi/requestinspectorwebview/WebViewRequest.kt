@@ -3,6 +3,7 @@ package com.acsbendi.requestinspectorwebview
 import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
+import androidx.annotation.RequiresApi
 
 data class WebViewRequest(
     val type: WebViewRequestType,
@@ -43,6 +44,7 @@ data class WebViewRequest(
     }
 
     companion object {
+        @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
         internal fun create(
             webResourceRequest: WebResourceRequest,
             recordedRequest: RequestInspectorJavaScriptInterface.RecordedRequest?

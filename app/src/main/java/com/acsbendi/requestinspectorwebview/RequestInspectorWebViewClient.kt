@@ -2,11 +2,13 @@ package com.acsbendi.requestinspectorwebview
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.os.Build
 import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.annotation.RequiresApi
 
 @SuppressLint("SetJavaScriptEnabled")
 open class RequestInspectorWebViewClient @JvmOverloads constructor(
@@ -22,6 +24,7 @@ open class RequestInspectorWebViewClient @JvmOverloads constructor(
         webSettings.domStorageEnabled = true
     }
 
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     final override fun shouldInterceptRequest(
         view: WebView,
         request: WebResourceRequest

@@ -101,7 +101,11 @@ public class PlayService extends Service {
 
     private PendingIntent getPendingIntentActivity() {
         Intent intent = new Intent(this, DetailActivity.class);
-        return PendingIntent.getActivity(this, 1, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+        return PendingIntent.getActivity(this, 1, intent, flags);
     }
     public static PendingIntent getPendingIntent(int actionCode) {
         return PendingIntent.getBroadcast(App.getInstance(), actionCode, new Intent(DetailActivity.BROADCAST_ACTION).putExtra("action", actionCode).setPackage(App.getInstance().getPackageName()),PendingIntent.FLAG_UPDATE_CURRENT);
