@@ -6,6 +6,8 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
 
 发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
 
+`main` 分支生成的文件名以 `Y-TVBOX_main_` 开头，便于和 Android 4.4 兼容版区分。
+
 未配置签名时，工作流会生成临时签名以完成构建和发布；不同运行生成的临时签名不同，APK 可能无法直接覆盖升级。正式发布请在仓库的 Actions secrets 中配置：
 
 - `YTVBOX_KEYSTORE_BASE64`：JKS/PKCS12 签名文件的 Base64 内容
