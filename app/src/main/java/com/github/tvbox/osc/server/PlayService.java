@@ -27,7 +27,7 @@ import org.greenrobot.eventbus.ThreadMode;
 import org.json.JSONObject;
 
 public class PlayService extends Service {
-	static String videoInfo = "TVBox&&第一集";
+	static String videoInfo = "Y-TVBOX&&第一集";
     private static MyVideoView videoView;
 
     public static void start(MyVideoView controller,String currentVideoInfo) {

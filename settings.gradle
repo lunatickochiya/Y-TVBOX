@@ -1,4 +1,4 @@
-rootProject.name = "TVBox"
+rootProject.name = "Y-TVBOX"
 include ':app'
 include ':quickjs'
 include ':pyramid'

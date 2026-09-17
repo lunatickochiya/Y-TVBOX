@@ -7,11 +7,18 @@ def static buildTime() {
     return new Date().format("yyyyMMdd_HHmm", TimeZone.getTimeZone("GMT+08:00"))
 }
 
+def releaseKeystorePath = System.getenv("YTVBOX_KEYSTORE_FILE")
+def releaseKeystorePassword = System.getenv("YTVBOX_KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("YTVBOX_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("YTVBOX_KEY_PASSWORD")
+def hasReleaseSigning = [releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword]
+        .every { it != null && !it.isEmpty() }
+
 android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.github.tvbox.osc.tk'
+        applicationId 'com.github.ytvbox.osc'
         targetSdkVersion 28
         versionCode 1
         versionName "1.0.".concat(buildTime())
@@ -28,10 +35,23 @@ android {
         exclude 'META-INF/DEPENDENCIES'
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
-
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
@@ -57,7 +77,7 @@ android {
 
         hisense {
             //海信的
-            applicationId 'com.github.hisense.osc.tk'
+            applicationId 'com.github.ytvbox.osc.hisense'
             dimension = "brand"
         }
         normal {
@@ -76,7 +96,7 @@ android {
         variant.outputs.configureEach { output ->
             def flavorNames = variant.productFlavors.collect { it.name == "normal" ? "java" : it.name }.join('-')
             // 构建自定义文件名
-            def fileName = "TVBox_${variant.buildType.name}-${flavorNames}.apk"
+            def fileName = "Y-TVBOX_${variant.buildType.name}-${flavorNames}.apk"
             outputFileName = fileName
         }
     }
