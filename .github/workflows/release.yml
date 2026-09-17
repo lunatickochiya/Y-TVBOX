@@ -1,28 +1,21 @@
-name: Build and publish APK
+name: Y-TVBOX
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag, for example v1.0.0"
-        required: true
-        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  TZ: Asia/Shanghai
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
     steps:
       - name: Check out source
@@ -36,6 +29,9 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
+
+      - name: Set release tag
+        run: echo "RELEASE_TAG=Y-TVBOX-$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_ENV"
 
       - name: Prepare release signing
         env:
