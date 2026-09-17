@@ -40,19 +40,38 @@ jobs:
           KEY_ALIAS: ${{ secrets.YTVBOX_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.YTVBOX_KEY_PASSWORD }}
         run: |
-          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
-            echo "Missing one or more YTVBOX signing secrets." >&2
-            exit 1
-          fi
           mkdir -p "$RUNNER_TEMP/ytvbox-signing"
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ytvbox-signing/release.jks"
+          KEYSTORE_FILE="$RUNNER_TEMP/ytvbox-signing/release.jks"
+
+          if [[ -n "$KEYSTORE_BASE64" && -n "$KEYSTORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+          elif [[ -n "$KEYSTORE_BASE64$KEYSTORE_PASSWORD$KEY_ALIAS$KEY_PASSWORD" ]]; then
+            echo "YTVBOX signing secrets are incomplete." >&2
+            exit 1
+          else
+            echo "::warning::Using a temporary signing key. Configure YTVBOX signing secrets to support APK upgrades."
+            KEYSTORE_PASSWORD=android
+            KEY_ALIAS=ytvbox
+            KEY_PASSWORD=android
+            keytool -genkeypair \
+              -keystore "$KEYSTORE_FILE" \
+              -storepass "$KEYSTORE_PASSWORD" \
+              -alias "$KEY_ALIAS" \
+              -keypass "$KEY_PASSWORD" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Y-TVBOX Temporary,OU=GitHub Actions,O=Y-TVBOX,C=CN"
+          fi
+
+          {
+            echo "YTVBOX_KEYSTORE_FILE=$KEYSTORE_FILE"
+            echo "YTVBOX_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "YTVBOX_KEY_ALIAS=$KEY_ALIAS"
+            echo "YTVBOX_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: Build signed release APKs
-        env:
-          YTVBOX_KEYSTORE_FILE: ${{ runner.temp }}/ytvbox-signing/release.jks
-          YTVBOX_KEYSTORE_PASSWORD: ${{ secrets.YTVBOX_KEYSTORE_PASSWORD }}
-          YTVBOX_KEY_ALIAS: ${{ secrets.YTVBOX_KEY_ALIAS }}
-          YTVBOX_KEY_PASSWORD: ${{ secrets.YTVBOX_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew \
