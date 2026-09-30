@@ -2,6 +2,7 @@ package com.github.tvbox.osc.player;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.os.Build;
 import android.text.TextUtils;
 
 import com.github.tvbox.osc.api.ApiConfig;
@@ -10,6 +11,7 @@ import com.github.tvbox.osc.util.FileUtils;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.MD5;
 import com.github.tvbox.osc.util.PlayerHelper;
+import com.github.tvbox.osc.util.LegacyPlaybackProfile;
 import com.orhanobut.hawk.Hawk;
 
 import java.io.File;
@@ -53,6 +55,9 @@ public class IjkmPlayer extends IjkPlayer {
                     mMediaPlayer.setOption(category, name, value);
                 }
             }
+        }
+        if (LegacyPlaybackProfile.restoreIjkLoopFilter(Build.VERSION.SDK_INT)) {
+            mMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_CODEC, "skip_loop_filter", 0L);
         }
         //开启内置字幕
         mMediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "subtitle", 1);

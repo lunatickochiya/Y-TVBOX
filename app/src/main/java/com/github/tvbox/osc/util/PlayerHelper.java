@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.util;
 
 import android.content.Context;
+import android.os.Build;
 
 import com.blankj.utilcode.util.ToastUtils;
 import com.github.tvbox.osc.api.ApiConfig;
@@ -42,6 +43,9 @@ public class PlayerHelper {
             e.printStackTrace();
         }
         if (forcePlayerType >= 0) playerType = forcePlayerType;
+        if (LegacyPlaybackProfile.isLegacyAndroid(Build.VERSION.SDK_INT)) {
+            renderType = LegacyPlaybackProfile.defaultRenderType(Build.VERSION.SDK_INT);
+        }
         IJKCode codec = ApiConfig.get().getIJKCodec(ijkCode);
         PlayerFactory playerFactory;
         if (playerType == 1) {
@@ -107,6 +111,9 @@ public class PlayerHelper {
             playerFactory = AndroidMediaPlayerFactory.create();
         }
         int renderType = Hawk.get(HawkConfig.PLAY_RENDER, 0);
+        if (LegacyPlaybackProfile.isLegacyAndroid(Build.VERSION.SDK_INT)) {
+            renderType = LegacyPlaybackProfile.defaultRenderType(Build.VERSION.SDK_INT);
+        }
         RenderViewFactory renderViewFactory = null;
         switch (renderType) {
             case 0:
