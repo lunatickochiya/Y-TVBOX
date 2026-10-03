@@ -55,6 +55,7 @@ import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.HawkUtils;
 import com.github.tvbox.osc.util.JavaUtil;
+import com.github.tvbox.osc.util.XmltvEpgUtil;
 import com.github.tvbox.osc.util.live.TxtSubscribe;
 import com.google.gson.JsonArray;
 import com.lzy.okgo.OkGo;
@@ -885,6 +886,29 @@ public class LivePlayActivity extends BaseActivity {
 
         if (epgStringAddress == null || epgStringAddress.isEmpty()) {
             showEpg(date, new ArrayList());
+            return;
+        }
+
+        // XMLTV（路由器 iptv_epg.xml / .xml.gz、x-tvg-url 等）走本地解析，
+        // 其余地址沿用 DIYP 的 epg_data JSON 接口。
+        if (XmltvEpgUtil.isXmltvUrl(epgStringAddress)) {
+            final String epgChannelName = channelName;
+            XmltvEpgUtil.query(epgStringAddress, channelName, epgTagName, date, new XmltvEpgUtil.Callback() {
+                @Override
+                public void onResult(List<Epginfo> list) {
+                    if (epgChannelName != null && !epgChannelName.equals(channel_Name.getChannelName()))
+                        return;
+                    ArrayList arrayList = new ArrayList(list);
+                    int epgDateIndex = epgDateAdapter.getSelectedIndex();
+                    String epgDateStr = epgDateIndex >= 0 ?
+                            epgDateAdapter.getItem(epgDateIndex).getDatePresented() :
+                            new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(new Date());
+                    String savedEpgKey = epgChannelName + "_" + epgDateStr;
+                    hsEpg.put(savedEpgKey, arrayList);
+                    showEpg(date, arrayList);
+                    showBottomEpg();
+                }
+            });
             return;
         }
 
