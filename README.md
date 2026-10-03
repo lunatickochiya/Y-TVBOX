@@ -17,6 +17,15 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
 
 请长期保存同一套签名密钥，否则已安装版本无法升级。
 
+## IPTV / FCC
+
+Y-TVBOX 内置原生 FCC（快速换台）与组播播放：带 `?fcc=` 的频道由 App 自己完成
+FCC 单播突发、追平后无缝切组播，再经 `127.0.0.1` 本地 HTTP 中继喂给播放器。
+直播界面「偏好设置 → FCC快速换台」可开关。
+
+URL 示例、网络前提（组播转发 / FCC 单播 NAT）与日志排查见
+[docs/FCC.md](docs/FCC.md)。
+
 === Source Code - Editing the app default settings ===
 /src/main/java/com/github/tvbox/osc/base/App.java
 

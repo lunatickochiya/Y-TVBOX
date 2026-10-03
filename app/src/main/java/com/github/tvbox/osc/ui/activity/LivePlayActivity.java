@@ -39,6 +39,7 @@ import com.github.tvbox.osc.bean.LivePlayerManager;
 import com.github.tvbox.osc.bean.LiveSettingGroup;
 import com.github.tvbox.osc.bean.LiveSettingItem;
 import com.github.tvbox.osc.event.RefreshEvent;
+import com.github.tvbox.osc.fcc.FccController;
 import com.github.tvbox.osc.player.controller.LiveController;
 import com.github.tvbox.osc.ui.adapter.ApiHistoryDialogAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveChannelGroupAdapter;
@@ -100,6 +101,10 @@ public class LivePlayActivity extends BaseActivity {
     // Main View
     private VideoView mVideoView;
     private LiveController controller;
+
+    // FCC (Fast Channel Change)
+    private FccController fccController;
+    private boolean fccBypassOnce = false;
 
     // Left Channel View
     private LinearLayout tvLeftChannelListLayout;
@@ -209,6 +214,30 @@ public class LivePlayActivity extends BaseActivity {
         return header;
     }
 
+    /**
+     * Play a live URL, optionally through the native FCC relay. When the URL
+     * carries FCC information the app receives the unicast burst itself and
+     * hands over to multicast; otherwise the original URL is used unchanged.
+     */
+    private void playLiveUrl(String url) {
+        if (fccController == null) fccController = FccController.get();
+        String playUrl = url;
+        if (!fccBypassOnce) {
+            String localUrl = fccController.prepare(url);
+            if (localUrl != null) playUrl = localUrl;
+        } else {
+            fccController.stop();
+        }
+        mVideoView.setUrl(playUrl, setPlayHeaders(url));
+    }
+
+    /** Play a URL directly (catch-up/time-shift must not be FCC intercepted). */
+    private void playDirectUrl(String url) {
+        if (fccController == null) fccController = FccController.get();
+        fccController.stop();
+        mVideoView.setUrl(url, setPlayHeaders(url));
+    }
+
     @Override
     protected int getLayoutResID() {
         return R.layout.activity_live_play;
@@ -228,6 +257,16 @@ public class LivePlayActivity extends BaseActivity {
         EventBus.getDefault().register(this);
         setLoadSir(findViewById(R.id.live_root));
         mVideoView = findViewById(R.id.mVideoView);
+
+        fccController = FccController.get();
+        fccController.setListener((sourceUrl, reason) -> mHandler.post(() -> {
+            if (sourceUrl == null || currentLiveChannelItem == null) return;
+            if (!sourceUrl.equals(currentLiveChannelItem.getUrl())) return;
+            Toast.makeText(App.getInstance(), "FCC 不可用，回退原始播放", Toast.LENGTH_SHORT).show();
+            fccBypassOnce = true;
+            replayChannel();
+            fccBypassOnce = false;
+        }));
 
         tvSelectedChannel = findViewById(R.id.tv_selected_channel);
         tv_size = findViewById(R.id.tv_size);                 // Resolution
@@ -535,6 +574,9 @@ public class LivePlayActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        FccController controller = fccController != null ? fccController : FccController.get();
+        controller.setListener(null);
+        controller.stop();
         if (mVideoView != null) {
             mVideoView.release();
             mVideoView = null;
@@ -920,7 +962,7 @@ public class LivePlayActivity extends BaseActivity {
         }
 
         getEpg(new Date());
-        mVideoView.setUrl(currentLiveChannelItem.getUrl(), setPlayHeaders(currentLiveChannelItem.getUrl()));
+        playLiveUrl(currentLiveChannelItem.getUrl());
         showChannelInfo();
         mVideoView.start();
         return true;
@@ -961,7 +1003,7 @@ public class LivePlayActivity extends BaseActivity {
         }
 
         getEpg(new Date());
-        mVideoView.setUrl(currentLiveChannelItem.getUrl(), setPlayHeaders(currentLiveChannelItem.getUrl()));
+        playLiveUrl(currentLiveChannelItem.getUrl());
         showChannelInfo();
         mVideoView.start();
         return true;
@@ -1237,7 +1279,7 @@ public class LivePlayActivity extends BaseActivity {
                 if (now.compareTo(selectedData.startdateTime) >= 0 && now.compareTo(selectedData.enddateTime) <= 0) {
                     mVideoView.release();
                     isSHIYI = false;
-                    mVideoView.setUrl(currentLiveChannelItem.getUrl(), setPlayHeaders(currentLiveChannelItem.getUrl()));
+                    playLiveUrl(currentLiveChannelItem.getUrl());
                     mVideoView.start();
                     epgListAdapter.setShiyiSelection(-1, false, timeFormat.format(date));
                 }
@@ -1247,7 +1289,7 @@ public class LivePlayActivity extends BaseActivity {
                     mVideoView.release();
                     shiyi_time = shiyiStartdate + "-" + shiyiEnddate;
                     isSHIYI = true;
-                    mVideoView.setUrl(currentLiveChannelItem.getUrl() + "?playseek=" + shiyi_time, setPlayHeaders(currentLiveChannelItem.getUrl()));
+                    playDirectUrl(currentLiveChannelItem.getUrl() + "?playseek=" + shiyi_time);
                     mVideoView.start();
                     epgListAdapter.setShiyiSelection(position, true, timeFormat.format(date));
                     epgListAdapter.notifyDataSetChanged();
@@ -1282,7 +1324,7 @@ public class LivePlayActivity extends BaseActivity {
                 if (now.compareTo(selectedData.startdateTime) >= 0 && now.compareTo(selectedData.enddateTime) <= 0) {
                     mVideoView.release();
                     isSHIYI = false;
-                    mVideoView.setUrl(currentLiveChannelItem.getUrl(), setPlayHeaders(currentLiveChannelItem.getUrl()));
+                    playLiveUrl(currentLiveChannelItem.getUrl());
                     mVideoView.start();
                     epgListAdapter.setShiyiSelection(-1, false, timeFormat.format(date));
                 }
@@ -1292,7 +1334,7 @@ public class LivePlayActivity extends BaseActivity {
                     mVideoView.release();
                     shiyi_time = shiyiStartdate + "-" + shiyiEnddate;
                     isSHIYI = true;
-                    mVideoView.setUrl(currentLiveChannelItem.getUrl() + "?playseek=" + shiyi_time, setPlayHeaders(currentLiveChannelItem.getUrl()));
+                    playDirectUrl(currentLiveChannelItem.getUrl() + "?playseek=" + shiyi_time);
                     mVideoView.start();
                     epgListAdapter.setShiyiSelection(position, true, timeFormat.format(date));
                     epgListAdapter.notifyDataSetChanged();
@@ -1640,7 +1682,7 @@ public class LivePlayActivity extends BaseActivity {
             case 2://播放解码
                 mVideoView.release();
                 livePlayerManager.changeLivePlayerType(mVideoView, position, currentLiveChannelItem.getChannelName());
-                mVideoView.setUrl(currentLiveChannelItem.getUrl(), setPlayHeaders(currentLiveChannelItem.getUrl()));
+                playLiveUrl(currentLiveChannelItem.getUrl());
                 mVideoView.start();
                 break;
             case 3://超时换源
@@ -1671,6 +1713,14 @@ public class LivePlayActivity extends BaseActivity {
                         // takagen99 : Added Skip Password Option
                         select = !Hawk.get(HawkConfig.LIVE_SKIP_PASSWORD, false);
                         Hawk.put(HawkConfig.LIVE_SKIP_PASSWORD, select);
+                        break;
+                    case 5:
+                        select = !Hawk.get(HawkConfig.FCC_ENABLE, true);
+                        Hawk.put(HawkConfig.FCC_ENABLE, select);
+                        if (!select) {
+                            FccController.get().stop();
+                        }
+                        if (isCurrentLiveChannelValid()) replayChannel();
                         break;
 //                    case 5:
 //                        // takagen99 : Added Live History list selection - 直播列表
@@ -1892,7 +1942,7 @@ public class LivePlayActivity extends BaseActivity {
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
-        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码"));
+        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
         itemsArrayList.add(sourceItems);
@@ -1924,6 +1974,7 @@ public class LivePlayActivity extends BaseActivity {
         liveSettingGroupList.get(4).getLiveSettingItems().get(2).setItemSelected(Hawk.get(HawkConfig.LIVE_CHANNEL_REVERSE, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(3).setItemSelected(Hawk.get(HawkConfig.LIVE_CROSS_GROUP, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(4).setItemSelected(Hawk.get(HawkConfig.LIVE_SKIP_PASSWORD, false));
+        liveSettingGroupList.get(4).getLiveSettingItems().get(5).setItemSelected(Hawk.get(HawkConfig.FCC_ENABLE, true));
     }
 
     private void loadCurrentSourceList() {
