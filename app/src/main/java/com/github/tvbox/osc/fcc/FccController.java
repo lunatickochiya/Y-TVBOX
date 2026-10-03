@@ -76,6 +76,15 @@ public final class FccController {
             return null;
         }
         if (channel == null) return null;
+        if (channel.proxied) {
+            // HTTP multicast proxy URLs (rtp2httpd/udpxy) are already served by
+            // a proxy that handles FCC server-side. Native FCC over a NAT'd LAN
+            // cannot receive the operator's unicast burst (it arrives from a
+            // different source port than the request and is not an established
+            // conntrack flow), so leave these to the upstream proxy.
+            Log.i(TAG, "FCC: proxied URL, keep upstream proxy handling");
+            return null;
+        }
 
         try {
             queue = new ByteQueue(RELAY_QUEUE_BYTES);
