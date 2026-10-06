@@ -131,7 +131,12 @@ public class ImgUtil {
                 .diskCacheStrategy(getDiskCacheStrategy(4))
                 .dontAnimate()
                 .transform(new CenterCrop(), new RoundedCorners(roundingRadius));
-            if (newWidth > 0 && newHeight > 0) {
+            if (DeviceCapability.get(App.getInstance()).getMemoryClass() == DeviceCapability.MEMORY_LOW) {
+                // 低内存设备限制图片解码尺寸, 降低 Glide 内存占用
+                int width = newWidth > 0 ? Math.min(newWidth, defaultWidth) : defaultWidth;
+                int height = newHeight > 0 ? Math.min(newHeight, defaultHeight) : defaultHeight;
+                requestOptions = requestOptions.override(width, height);
+            } else if (newWidth > 0 && newHeight > 0) {
                 requestOptions = requestOptions.override(newWidth, newHeight);
             }
             Glide.with(App.getInstance())

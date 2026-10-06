@@ -25,6 +25,7 @@ import androidx.media3.exoplayer.trackselection.TrackSelectionArray;
 import androidx.media3.ui.PlayerView;
 
 import com.github.tvbox.osc.base.App;
+import com.github.tvbox.osc.util.DeviceCapability;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.HawkUtils;
 import com.github.tvbox.osc.util.LegacyPlaybackProfile;
@@ -79,7 +80,14 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
             mTrackSelector = new DefaultTrackSelector(mAppContext);
         }
         if (mLoadControl == null) {
-            mLoadControl = new DefaultLoadControl();
+            if (DeviceCapability.get(mAppContext).getMemoryClass() == DeviceCapability.MEMORY_LOW) {
+                // 低内存设备收缩 Exo 缓冲区, 降低播放缓存占用
+                mLoadControl = new DefaultLoadControl.Builder()
+                        .setBufferDurationsMs(5_000, 15_000, 1_000, 2_000)
+                        .build();
+            } else {
+                mLoadControl = new DefaultLoadControl();
+            }
         }
         mTrackSelector.setParameters(mTrackSelector.getParameters().buildUpon()
                 .setPreferredTextLanguage(Locale.getDefault().getISO3Language())

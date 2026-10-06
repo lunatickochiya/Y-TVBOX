@@ -7,6 +7,8 @@ import android.os.Looper;
 import androidx.core.os.HandlerCompat;
 import androidx.multidex.MultiDexApplication;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.MemoryCategory;
 import com.github.catvod.crawler.JarLoader;
 import com.github.catvod.crawler.JsLoader;
 import com.github.tvbox.osc.R;
@@ -14,6 +16,7 @@ import com.github.tvbox.osc.callback.EmptyCallback;
 import com.github.tvbox.osc.callback.LoadingCallback;
 import com.github.tvbox.osc.data.AppDataManager;
 import com.github.tvbox.osc.server.ControlManager;
+import com.github.tvbox.osc.util.DeviceCapability;
 import com.github.tvbox.osc.util.EpgUtil;
 import com.github.tvbox.osc.util.FileUtils;
 import com.github.tvbox.osc.util.HawkConfig;
@@ -64,6 +67,10 @@ public class App extends MultiDexApplication {
         super.onCreate();
         SubtitleHelper.initSubtitleColor(this);
         initParams();
+        if (DeviceCapability.get(this).getMemoryClass() == DeviceCapability.MEMORY_LOW) {
+            // 低内存设备降低 Glide 内存缓存档位
+            Glide.get(this).setMemoryCategory(MemoryCategory.LOW);
+        }
         // X5 版本且用户选择了 X5 嗅探时, 提前初始化内核(未安装时 TBS 会在后台自动下载)
         if (X5Support.isSupported() && Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0) == 2) {
             X5Support.init(this, null);
