@@ -105,10 +105,30 @@ public class AppDataManager {
         return dbInstance;
     }
 
-    public static boolean backup(File path) throws IOException {
-        if (dbInstance != null && dbInstance.isOpen()) {
-            dbInstance.close();
+    /**
+     * 关闭数据库实例并置空, 下次访问时重新构建.
+     * Room 实例 close() 之后不能再次使用, 不置空会导致备份后继续访问数据库报错.
+     */
+    private static void closeDb() {
+        try {
+            if (dbInstance != null && dbInstance.isOpen()) {
+                dbInstance.close();
+            }
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
+        dbInstance = null;
+    }
+
+    public static boolean backup(File path) throws IOException {
+        // 全新安装或只用直播时 Room 还没有建库, 先强制打开一次让数据库文件落盘,
+        // 否则备份会误报"DB文件不存在"
+        try {
+            get().getOpenHelper().getWritableDatabase();
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        closeDb();
         File db = App.getInstance().getDatabasePath(dbPath());
         if (db.exists()) {
             FileUtils.copyFile(db, path);
@@ -119,9 +139,7 @@ public class AppDataManager {
     }
 
     public static boolean restore(File path) throws IOException {
-        if (dbInstance != null && dbInstance.isOpen()) {
-            dbInstance.close();
-        }
+        closeDb();
         File db = App.getInstance().getDatabasePath(dbPath());
         if (db.exists()) {
             db.delete();
