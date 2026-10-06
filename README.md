@@ -47,3 +47,6 @@ URL 示例、网络前提（组播转发 / FCC 单播 NAT）与日志排查见
         putDefault(HawkConfig.SEARCH_VIEW, 2);    // Text or Picture
 
     }
+
+
+原项目：https://github.com/takagen99/Box
