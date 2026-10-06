@@ -8,6 +8,7 @@ import java.io.StringReader;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,16 +16,24 @@ public class TxtSubscribe {
 
     private static final Pattern NAME_PATTERN = Pattern.compile(".*,(.+?)$");
     private static final Pattern GROUP_PATTERN = Pattern.compile("group-title=\"(.*?)\"");
+    private static final Pattern CATCHUP_SOURCE_PATTERN = Pattern.compile("catchup-source=\"(.*?)\"");
 
     public static void parse(LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap, String str) {
+        parse(linkedHashMap, str, null);
+    }
+
+    /**
+     * @param catchupMap 可选: 输出 m3u 里每个源地址对应的 catchup-source 回看模板
+     */
+    public static void parse(LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap, String str, Map<String, String> catchupMap) {
         if (str.startsWith("#EXTM3U")) {
-            parseM3u(linkedHashMap, str);
+            parseM3u(linkedHashMap, str, catchupMap);
         } else {
             parseTxt(linkedHashMap, str);
         }
     }
 
-    private static void parseM3u(LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap, String str) {
+    private static void parseM3u(LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap, String str, Map<String, String> catchupMap) {
         ArrayList<String> urls;
         try {
             BufferedReader bufferedReader = new BufferedReader(new StringReader(str));
@@ -37,6 +46,10 @@ public class TxtSubscribe {
                 if (line.startsWith("#EXTINF")) {
                     String name = getStrByRegex(NAME_PATTERN, line);
                     String group = getStrByRegex(GROUP_PATTERN, line);
+                    // m3u 回看模板: catchup-source="http://.../${(b)yyyyMMddHHmmss}/${(e)yyyyMMddHHmmss}/..."
+                    String catchupSource = null;
+                    Matcher catchupMatcher = CATCHUP_SOURCE_PATTERN.matcher(line);
+                    if (catchupMatcher.find()) catchupSource = catchupMatcher.group(1);
                     // 此时再读取一行，就是对应的 url 链接了
                     String url = bufferedReader.readLine().trim();
                     if (linkedHashMap.containsKey(group)) {
@@ -52,6 +65,9 @@ public class TxtSubscribe {
                         channelTemp.put(name, urls);
                     }
                     if (null != urls && !urls.contains(url)) urls.add(url);
+                    if (catchupMap != null && catchupSource != null && !catchupSource.isEmpty()) {
+                        catchupMap.put(url, catchupSource);
+                    }
                 }
             }
             bufferedReader.close();
@@ -124,6 +140,10 @@ public class TxtSubscribe {
     }
 
     public static JsonArray live2JsonArray(LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap) {
+        return live2JsonArray(linkedHashMap, null);
+    }
+
+    public static JsonArray live2JsonArray(LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap, Map<String, String> catchupMap) {
         JsonArray jsonarr = new JsonArray();
         for (String str : linkedHashMap.keySet()) {
             JsonArray jsonarr2 = new JsonArray();
@@ -133,13 +153,19 @@ public class TxtSubscribe {
                     ArrayList<String> arrayList = linkedHashMap2.get(str2);
                     if (!arrayList.isEmpty()) {
                         JsonArray jsonarr3 = new JsonArray();
+                        JsonArray jsonarr4 = new JsonArray();
                         for (int i = 0; i < arrayList.size(); i++) {
                             jsonarr3.add(arrayList.get(i));
+                            if (catchupMap != null) {
+                                String catchup = catchupMap.get(arrayList.get(i));
+                                jsonarr4.add(catchup == null ? "" : catchup);
+                            }
                         }
                         JsonObject jsonobj = new JsonObject();
                         try {
                             jsonobj.addProperty("name", str2);
                             jsonobj.add("urls", jsonarr3);
+                            if (catchupMap != null) jsonobj.add("catchups", jsonarr4);
                         } catch (Throwable e) {
                         }
                         jsonarr2.add(jsonobj);
