@@ -84,7 +84,7 @@ jobs:
             :app:assembleArm64GenericX5Release \
             :app:assembleArmeabiGenericGeckoRelease \
             :app:assembleArm64GenericGeckoRelease \
-            --no-daemon --stacktrace --refresh-dependencies
+            --no-daemon --stacktrace
 
       - name: Collect and verify APKs
         run: |
