@@ -112,6 +112,8 @@ android {
         // x5 版本使用 app/src/x5 下的 TBS 实现
         normal.java.srcDir 'src/std/java'
         python.java.srcDir 'src/std/java'
+        // x5 版本复用 normal 的 pyLoader 桩(不支持 Python 功能)
+        x5.java.srcDir 'src/normal/java'
     }
 
     compileOptions {
