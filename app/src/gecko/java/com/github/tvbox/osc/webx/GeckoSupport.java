@@ -63,13 +63,11 @@ public final class GeckoSupport {
                         if (callback != null) {
                             callback.onResult(true);
                         }
-                        return null;
                     }, e -> {
                         Log.e(TAG, "sniffer extension install failed", e);
                         if (callback != null) {
                             callback.onResult(false);
                         }
-                        return null;
                     });
         } catch (Throwable e) {
             e.printStackTrace();
@@ -177,11 +175,7 @@ public final class GeckoSupport {
                         if (extension != null) {
                             extension.setMessageDelegate(messageDelegate, NATIVE_APP);
                         }
-                        return null;
-                    }, e -> {
-                        Log.e(TAG, "sniffer extension install failed", e);
-                        return null;
-                    });
+                    }, e -> Log.e(TAG, "sniffer extension install failed", e));
         }
 
         private void sniff(GeckoSession.NavigationDelegate.LoadRequest request) {
