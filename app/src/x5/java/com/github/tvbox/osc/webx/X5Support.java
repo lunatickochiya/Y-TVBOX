@@ -204,7 +204,7 @@ public final class X5Support {
         }
     }
 
-    public static X5WebViewHolder createWebView(Context context, X5WebViewHolder.Host host) {
+    public static WebViewHolder createWebView(Context context, WebViewHolder.Host host) {
         try {
             return new Holder(context, host);
         } catch (Throwable e) {
@@ -217,12 +217,12 @@ public final class X5Support {
         void onResult(boolean x5Ready);
     }
 
-    private static class Holder implements X5WebViewHolder {
+    private static class Holder implements WebViewHolder {
 
         private final WebView webView;
-        private final X5WebViewHolder.Host host;
+        private final WebViewHolder.Host host;
 
-        Holder(Context context, X5WebViewHolder.Host host) {
+        Holder(Context context, WebViewHolder.Host host) {
             this.host = host;
             this.webView = new WebView(context);
             initSettings();

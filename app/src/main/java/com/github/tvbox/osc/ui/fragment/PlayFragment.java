@@ -90,8 +90,9 @@ import com.github.tvbox.osc.util.XWalkUtils;
 import com.github.tvbox.osc.util.thunder.Jianpian;
 import com.github.tvbox.osc.util.thunder.Thunder;
 import com.github.tvbox.osc.viewmodel.SourceViewModel;
+import com.github.tvbox.osc.webx.GeckoSupport;
 import com.github.tvbox.osc.webx.X5Support;
-import com.github.tvbox.osc.webx.X5WebViewHolder;
+import com.github.tvbox.osc.webx.WebViewHolder;
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.callback.AbsCallback;
 import com.lzy.okgo.model.HttpHeaders;
@@ -1722,17 +1723,27 @@ public class PlayFragment extends BaseLazyFragment {
     private XWalkWebClient mX5WebClient;
     private WebView mSysWebView;
     private SysWebClient mSysWebClient;
-    private X5WebViewHolder mX5WebView;
+    private WebViewHolder mX5WebView;
+    private WebViewHolder mGeckoWebView;
     private final Map<String, Boolean> loadedUrls = new HashMap<>();
     private LinkedList<String> loadFoundVideoUrls = new LinkedList<>();
     private HashMap<String, HashMap<String, String>> loadFoundVideoUrlsHeader = new HashMap<>();
     private final AtomicInteger loadFoundCount = new AtomicInteger(0);
 
     void loadWebView(String url) {
-        if (mSysWebView == null && mXwalkWebView == null && mX5WebView == null) {
+        if (mSysWebView == null && mXwalkWebView == null && mX5WebView == null && mGeckoWebView == null) {
             int webViewType = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
             if (webViewType == 2 && X5Support.isSupported()) {
                 if (initWebViewX5()) {
+                    loadUrl(url);
+                } else {
+                    initWebView(true);
+                    loadUrl(url);
+                }
+                return;
+            }
+            if (webViewType == 3 && GeckoSupport.isSupported()) {
+                if (initWebViewGecko()) {
                     loadUrl(url);
                 } else {
                     initWebView(true);
@@ -1788,11 +1799,23 @@ public class PlayFragment extends BaseLazyFragment {
             Toast.makeText(mContext, "X5内核初始化失败，已替换为系统自带WebView", Toast.LENGTH_SHORT).show();
             return false;
         }
-        configWebViewX5View(mX5WebView);
+        configWebViewEngine(mX5WebView);
         return true;
     }
 
-    private final X5WebViewHolder.Host mX5Host = new X5WebViewHolder.Host() {
+    /** Gecko 内核嗅探: 创建 GeckoView, 失败则回退系统 WebView */
+    private boolean initWebViewGecko() {
+        GeckoSupport.init(mContext, null);
+        mGeckoWebView = GeckoSupport.createWebView(mContext, mGeckoHost);
+        if (mGeckoWebView == null) {
+            Toast.makeText(mContext, "Gecko内核初始化失败，已替换为系统自带WebView", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        configWebViewEngine(mGeckoWebView);
+        return true;
+    }
+
+    private final WebViewHolder.Host mX5Host = new WebViewHolder.Host() {
         @Override
         public int onInterceptRequest(String url, Map<String, String> headers) {
             return decideIntercept(url, headers == null ? new HashMap<String, String>() : new HashMap<>(headers));
@@ -1808,7 +1831,23 @@ public class PlayFragment extends BaseLazyFragment {
         }
     };
 
-    private void configWebViewX5View(X5WebViewHolder webView) {
+    private final WebViewHolder.Host mGeckoHost = new WebViewHolder.Host() {
+        @Override
+        public int onInterceptRequest(String url, Map<String, String> headers) {
+            return decideIntercept(url, headers == null ? new HashMap<String, String>() : new HashMap<>(headers));
+        }
+
+        @Override
+        public void onPageFinished(String url) {
+            LOG.i("echo-onPageFinished url:" + url);
+            if (!url.equals("about:blank")) {
+                mController.evaluateScript(sourceBean, url, null, null, mGeckoWebView);
+            }
+            mHandler.sendEmptyMessage(200);
+        }
+    };
+
+    private void configWebViewEngine(WebViewHolder webView) {
         if (webView == null || !isAdded()) {
             return;
         }
@@ -1869,6 +1908,12 @@ public class PlayFragment extends BaseLazyFragment {
                     }
                     mX5WebView.loadUrl(url, webHeaderMap);
                 }
+                if (mGeckoWebView != null) {
+                    if (webUserAgent != null) {
+                        mGeckoWebView.setUserAgentString(webUserAgent);
+                    }
+                    mGeckoWebView.loadUrl(url, webHeaderMap);
+                }
             }
         });
     }
@@ -1905,6 +1950,13 @@ public class PlayFragment extends BaseLazyFragment {
                     if (destroy) {
                         mX5WebView.destroy();
                         mX5WebView = null;
+                    }
+                }
+                if (mGeckoWebView != null) {
+                    mGeckoWebView.stopLoading();
+                    if (destroy) {
+                        mGeckoWebView.destroy();
+                        mGeckoWebView = null;
                     }
                 }
             }

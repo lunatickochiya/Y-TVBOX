@@ -4,7 +4,7 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
 
 ## GitHub Release
 
-发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK，另外还会构建两个 X5 内核版（文件名带 `x5`），共 4 个 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
+发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK，另外还会构建两个 X5 内核版（文件名带 `x5`）和两个 Gecko 内核版（文件名带 `gecko`），共 6 个 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
 
 Android 4.4 兼容分支生成的文件名以 `Y-TVBOX_4.4_` 开头，便于和 `main` 版本区分。
 
@@ -33,8 +33,17 @@ armeabi 约 +45MB），用于替代老旧系统 WebView 做嗅探/解析：设�
 切换为「X5内核」，首次选择会把内置内核安装到应用私有目录，**重启应用后生效**；
 之后设置页会显示内核版本号。整个过程不联网下载内核。
 
-> Android 4.4 分支：X5 内核版要求 **Android 5.0+**（内核仅支持 Android 5–13），
-> 4.4 设备请安装文件名不带 `x5` 的普通版本。
+> Android 4.4 分支：X5 / Gecko 内核版都要求 **Android 5.0+**，
+> 4.4 设备请安装文件名不带 `x5` / `gecko` 的普通版本。
+
+## Gecko 内核（可选版本）
+
+文件名带 `gecko` 的 APK 内置 Mozilla GeckoView 144（按 ABI 打包，约 +80MB；144 是最后支持
+Android 5.0+ 的版本），用现代 Firefox 内核替代老旧系统 WebView 做嗅探/解析：设置里把
+「嗅探Webview」切换为「Gecko内核」即可，无需下载、无需重启。
+
+请求嗅探通过内置 WebExtension（`assets/extensions/sniffer`）的 `webRequest` 上报完成，
+点击选择器（evaluateScript）通过扩展的 native 端口在页面里执行 JS，与系统/X5 内核行为一致。
 
 === Source Code - Editing the app default settings ===
 /src/main/java/com/github/tvbox/osc/base/App.java
