@@ -111,6 +111,7 @@
     <string name="set_rest_fail_hk">Hawk恢复失败!</string>
     <string name="set_rest_fail_db">DB文件恢复失败!</string>
     <string name="set_permission_ok">已获得存储权限</string>
+    <string name="set_permission_need">请先授予存储权限</string>
     <string name="set_permission_fail1">获取存储权限失败</string>
     <string name="set_permission_fail2">获取存储权限失败,请在系统设置中开启</string>
 

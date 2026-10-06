@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.ui.dialog;
 
-import android.app.Activity;
 import android.content.Context;
 import android.view.View;
 import android.widget.EditText;
@@ -212,33 +211,56 @@ public class ApiDialog extends BaseDialog {
         findViewById(R.id.storagePermission).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (XXPermissions.isGranted(getContext(), DefaultConfig.StoragePermissionGroup())) {
-                    Toast.makeText(getContext(), "已获得存储权限", Toast.LENGTH_SHORT).show();
-                } else {
-                    XXPermissions.with(getContext())
-                            .permission(DefaultConfig.StoragePermissionGroup())
-                            .request(new OnPermissionCallback() {
-                                @Override
-                                public void onGranted(List<String> permissions, boolean all) {
-                                    if (all) {
-                                        Toast.makeText(getContext(), "已获得存储权限", Toast.LENGTH_SHORT).show();
-                                    }
-                                }
-
-                                @Override
-                                public void onDenied(List<String> permissions, boolean never) {
-                                    if (never) {
-                                        Toast.makeText(getContext(), "获取存储权限失败,请在系统设置中开启", Toast.LENGTH_SHORT).show();
-                                        XXPermissions.startPermissionActivity((Activity) getContext(), permissions);
-                                    } else {
-                                        Toast.makeText(getContext(), "获取存储权限失败", Toast.LENGTH_SHORT).show();
-                                    }
-                                }
-                            });
-                }
+                requestStoragePermission();
             }
         });
         refreshQRCode();
+    }
+
+    /**
+     * 申请存储权限:
+     * Android 11+ 由 XXPermissions 自动跳"所有文件访问", Android 10 及以下自动用旧版读写权限,
+     * 整个流程加 try/catch, 避免个别 TV 盒子缺少系统设置页导致崩溃
+     */
+    private void requestStoragePermission() {
+        try {
+            if (XXPermissions.isGranted(getContext(), DefaultConfig.StoragePermissionGroup())) {
+                Toast.makeText(getContext(), "已获得存储权限", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            XXPermissions.with(getContext())
+                    .permission(DefaultConfig.StoragePermissionGroup())
+                    .request(new OnPermissionCallback() {
+                        @Override
+                        public void onGranted(List<String> permissions, boolean all) {
+                            if (all) {
+                                Toast.makeText(getContext(), "已获得存储权限", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+
+                        @Override
+                        public void onDenied(List<String> permissions, boolean never) {
+                            if (never) {
+                                Toast.makeText(getContext(), "获取存储权限失败,请在系统设置中开启", Toast.LENGTH_SHORT).show();
+                                openPermissionSettings(permissions);
+                            } else {
+                                Toast.makeText(getContext(), "获取存储权限失败", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    });
+        } catch (Throwable e) {
+            e.printStackTrace();
+            Toast.makeText(getContext(), "获取存储权限失败", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** 跳转系统权限设置页(部分设备没有该页面, 捕获异常避免崩溃) */
+    private void openPermissionSettings(List<String> permissions) {
+        try {
+            XXPermissions.startPermissionActivity(getContext(), permissions);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
     }
 
     private void refreshQRCode() {
