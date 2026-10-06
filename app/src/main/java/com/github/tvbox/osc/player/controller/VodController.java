@@ -52,6 +52,7 @@ import com.github.tvbox.osc.util.PlayerHelper;
 import com.github.tvbox.osc.util.ScreenUtils;
 import com.github.tvbox.osc.util.SubtitleHelper;
 import com.github.tvbox.osc.util.VideoParseRuler;
+import com.github.tvbox.osc.webx.X5WebViewHolder;
 import com.orhanobut.hawk.Hawk;
 import com.owen.tvrecyclerview.widget.TvRecyclerView;
 import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
@@ -1648,6 +1649,10 @@ public class VodController extends BaseController {
     }
 
     public void evaluateScript(SourceBean sourceBean,String url, WebView web_view, XWalkView xWalk_view){
+        evaluateScript(sourceBean, url, web_view, xWalk_view, null);
+    }
+
+    public void evaluateScript(SourceBean sourceBean,String url, WebView web_view, XWalkView xWalk_view, X5WebViewHolder x5_view){
         String clickSelector = sourceBean.getClickSelector().trim();
         clickSelector=clickSelector.isEmpty()?VideoParseRuler.getHostScript(url):clickSelector;
         if (!clickSelector.isEmpty()) {
@@ -1675,6 +1680,9 @@ public class VodController extends BaseController {
             if(xWalk_view!=null){
                 //4.0+开始全部支持这种写法
                 xWalk_view.evaluateJavascript(js, null);
+            }
+            if(x5_view!=null){
+                x5_view.evaluateJavascript(js);
             }
         }
     }	    

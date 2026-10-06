@@ -22,6 +22,7 @@ import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.PlayerHelper;
 import com.github.tvbox.osc.util.SubtitleHelper;
+import com.github.tvbox.osc.webx.X5Support;
 import com.hjq.permissions.XXPermissions;
 import com.kingja.loadsir.core.LoadSir;
 import com.orhanobut.hawk.Hawk;
@@ -63,6 +64,10 @@ public class App extends MultiDexApplication {
         super.onCreate();
         SubtitleHelper.initSubtitleColor(this);
         initParams();
+        // X5 版本且用户选择了 X5 嗅探时, 提前初始化内核(未安装时 TBS 会在后台自动下载)
+        if (X5Support.isSupported() && Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0) == 2) {
+            X5Support.init(this, null);
+        }
         // takagen99 : Initialize Locale
         initLocale();
         // OKGo
@@ -153,6 +158,10 @@ public class App extends MultiDexApplication {
         putDefault(HawkConfig.SEARCH_VIEW, 1);               //搜索展示: 0=文字列表, 1=缩略图
         putDefault(HawkConfig.PARSE_WEBVIEW, true);          //嗅探Webview: true=系统自带, false=XWalkView
         putDefault(HawkConfig.DOH_URL, 0);                   //安全DNS: 0=关闭, 1=腾讯, 2=阿里, 3=360, 4=Google, 5=AdGuard, 6=Quad9
+        // 嗅探 WebView 类型: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本)
+        if (!Hawk.contains(HawkConfig.PARSE_WEBVIEW_TYPE)) {
+            Hawk.put(HawkConfig.PARSE_WEBVIEW_TYPE, Hawk.get(HawkConfig.PARSE_WEBVIEW, true) ? 0 : 1);
+        }
 
     }
 

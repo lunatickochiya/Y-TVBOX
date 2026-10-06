@@ -40,6 +40,7 @@ import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.HistoryHelper;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.PlayerHelper;
+import com.github.tvbox.osc.webx.X5Support;
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.callback.FileCallback;
 import com.lzy.okgo.model.Progress;
@@ -139,7 +140,7 @@ public class ModelSettingFragment extends BaseLazyFragment {
         tvRender = findViewById(R.id.tvRenderType);
         tvRender.setText(PlayerHelper.getRenderName(Hawk.get(HawkConfig.PLAY_RENDER, 0)));
         tvParseWebView = findViewById(R.id.tvParseWebView);
-        tvParseWebView.setText(Hawk.get(HawkConfig.PARSE_WEBVIEW, true) ? "系统自带" : "XWalkView");
+        tvParseWebView.setText(getParseWebViewName());
         tvSearchView = findViewById(R.id.tvSearchView);
         tvSearchView.setText(getSearchView(Hawk.get(HawkConfig.SEARCH_VIEW, 0)));
         tvDns = findViewById(R.id.tvDns);
@@ -519,10 +520,12 @@ public class ModelSettingFragment extends BaseLazyFragment {
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
-                boolean useSystem = !Hawk.get(HawkConfig.PARSE_WEBVIEW, true);
-                Hawk.put(HawkConfig.PARSE_WEBVIEW, useSystem);
-                tvParseWebView.setText(Hawk.get(HawkConfig.PARSE_WEBVIEW, true) ? "系统自带" : "XWalkView");
-                if (!useSystem) {
+                int webViewType = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
+                int maxType = X5Support.isSupported() ? 3 : 2;
+                webViewType = (webViewType + 1) % maxType;
+                Hawk.put(HawkConfig.PARSE_WEBVIEW_TYPE, webViewType);
+                tvParseWebView.setText(getParseWebViewName());
+                if (webViewType == 1) {
                     Toast.makeText(mContext, "注意: XWalkView只适用于部分低Android版本，Android5.0以上推荐使用系统自带", Toast.LENGTH_LONG).show();
                     XWalkInitDialog dialog = new XWalkInitDialog(mContext);
                     dialog.setOnListener(new XWalkInitDialog.OnListener() {
@@ -531,6 +534,14 @@ public class ModelSettingFragment extends BaseLazyFragment {
                         }
                     });
                     dialog.show();
+                } else if (webViewType == 2) {
+                    if (X5Support.canLoadX5(mContext)) {
+                        Toast.makeText(mContext, "X5内核已就绪(版本 " + X5Support.getVersion(mContext) + ")", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(mContext, "X5内核未就绪, 已开始后台下载, 稍后自动生效", Toast.LENGTH_LONG).show();
+                        X5Support.init(mContext, null);
+                        X5Support.startDownload(mContext);
+                    }
                 }
             }
         });
@@ -882,6 +893,18 @@ public class ModelSettingFragment extends BaseLazyFragment {
         } else {
             return "缩略图";
         }
+    }
+
+    /** 嗅探 WebView 名称: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本) */
+    String getParseWebViewName() {
+        int type = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
+        if (type == 1) {
+            return "XWalkView";
+        }
+        if (type == 2 && X5Support.isSupported()) {
+            return X5Support.canLoadX5(mContext) ? "X5内核(v" + X5Support.getVersion(mContext) + ")" : "X5内核(未就绪)";
+        }
+        return "系统自带";
     }
 
     String getLocaleView(int type) {

@@ -4,7 +4,7 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
 
 ## GitHub Release
 
-发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
+发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK，另外还会构建两个 X5 内核版（文件名带 `x5`），共 4 个 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
 
 `main` 分支生成的文件名以 `Y-TVBOX_main_` 开头，便于和 Android 4.4 兼容版区分。
 
@@ -25,6 +25,13 @@ FCC 单播突发、追平后无缝切组播，再经 `127.0.0.1` 本地 HTTP 中
 
 URL 示例、网络前提（组播转发 / FCC 单播 NAT）与日志排查见
 [docs/FCC.md](docs/FCC.md)。
+
+## X5 内核（可选版本）
+
+文件名带 `x5` 的 APK 内置腾讯 TBS/X5 SDK，用于替代老旧系统 WebView 做嗅探/解析：
+设置里把「嗅探Webview」切换为「X5内核」即可。首次使用会在后台自动下载 X5 内核
+（几十 MB，来自腾讯服务器），下载完成后自动生效，设置页会显示内核版本号。
+普通版本不包含 TBS SDK，选项里不会出现 X5。
 
 === Source Code - Editing the app default settings ===
 /src/main/java/com/github/tvbox/osc/base/App.java
