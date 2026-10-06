@@ -10,25 +10,39 @@
         android:name="android.software.leanback"
         android:required="false" />
 
+    <!-- 网络: 播放/数据源/EPG -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- WiFi: 读取本机 IP / 组播锁(FCC 快速换台) -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- 存储: Android 10 及以下走旧版读写权限, Android 11+ 走"所有文件访问"(备份/字体/推送/远程管理) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- XWalk 运行组件下载安装 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 应用抽屉里卸载第三方应用(targetSdk 31+ 时必须声明) -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />    
+    <!-- 开机自启进直播 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 开机自启在 Android 10+ 需要悬浮窗豁免后台启动限制 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- OkGo 传递依赖残留的废弃系统权限(仅系统应用可用), 普通应用拿不到还污染权限列表, 移除 -->
+    <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"
+        tools:node="remove" />
 
+    <!-- 包可见性声明(Android 11+ 且 targetSdk 30+ 时生效):
+         替代 QUERY_ALL_PACKAGES, 只暴露应用抽屉和第三方播放器需要的包 -->
     <queries>
         <intent>
-            <action android:name=".ui.activity.AppsActivity" />
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <package android:name="com.mxtech.videoplayer.pro" />
+        <package android:name="com.mxtech.videoplayer.ad" />
+        <package android:name="org.xbmc.kodi" />
     </queries>
 
     <application

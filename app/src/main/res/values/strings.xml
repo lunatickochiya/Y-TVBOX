@@ -112,6 +112,7 @@
     <string name="set_rest_fail_hk">Restore Fail (Hawk)</string>
     <string name="set_rest_fail_db">Restore Fail (DB)</string>
     <string name="set_permission_ok">Write Permission Granted</string>
+    <string name="set_permission_need">Please grant Storage Permission first</string>
     <string name="set_permission_fail1">Failed to get Permission</string>
     <string name="set_permission_fail2">Failed to get Permission, please grant in Settings</string>
 

@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.animation.BounceInterpolator;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.github.tvbox.osc.R;
@@ -130,15 +131,21 @@ public class AppsActivity extends BaseActivity {
                 AppInfo appInfo = appsAdapter.getData().get(position);
                 if (delMode) {
                     // Trigger to uninstall
-                    Uri packageURI = Uri.parse("package:" + appInfo.getPack());
-                    Intent uninstallIntent = new Intent(Intent.ACTION_DELETE, packageURI);
-                    uninstallIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(uninstallIntent);
+                    try {
+                        Uri packageURI = Uri.parse("package:" + appInfo.getPack());
+                        Intent uninstallIntent = new Intent(Intent.ACTION_DELETE, packageURI);
+                        uninstallIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(uninstallIntent);
 
-                    // Storing Package Info
-                    packageName = appInfo.getPack();
-                    isUnInstallClicked = true;
-                    appPosition = position;
+                        // Storing Package Info
+                        packageName = appInfo.getPack();
+                        isUnInstallClicked = true;
+                        appPosition = position;
+                    } catch (Throwable e) {
+                        // 部分 ROM 没有系统卸载界面, 避免直接崩溃
+                        e.printStackTrace();
+                        Toast.makeText(mContext, "无法调起系统卸载界面", Toast.LENGTH_SHORT).show();
+                    }
                 } else {
                     // Trigger to start activity
                     try {

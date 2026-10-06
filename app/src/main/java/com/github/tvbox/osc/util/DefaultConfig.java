@@ -99,16 +99,24 @@ public class DefaultConfig {
      * 清空公有目录
      */
     public static void clearPublic(Context mContext) {
-        File dir = new File(App.getInstance().getExternalFilesDir("").getParentFile().getAbsolutePath());
-        File[] files = dir.listFiles();
-        if (null != files) {
-            for (File file : files) {
-                FileUtils.recursiveDelete(file);
+        // 部分设备(无外置存储/TV 盒子) getExternalFilesDir 会返回 null, 加保护避免重置时崩溃
+        try {
+            File extDir = App.getInstance().getExternalFilesDir("");
+            if (extDir != null && extDir.getParentFile() != null) {
+                File dir = extDir.getParentFile();
+                File[] files = dir.listFiles();
+                if (null != files) {
+                    for (File file : files) {
+                        FileUtils.recursiveDelete(file);
+                    }
+                }
             }
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
         String publicFilePath = Environment.getExternalStorageDirectory().getPath() + "/" + getPackageName(mContext);
-        dir = new File(publicFilePath);
-        files = dir.listFiles();
+        File dir = new File(publicFilePath);
+        File[] files = dir.listFiles();
         if (null != files) {
             for (File file : files) {
                 FileUtils.recursiveDelete(file);

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 默认窗口背景: 清爽的青蓝渐变 (替代原黑色位图 app_bg.png)
+     需要更换配色时只改这三个颜色即可 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="#FF255E75"
+        android:centerColor="#FF31859A"
+        android:endColor="#FF123344"
+        android:type="linear" />
+</shape>

@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.ui.dialog;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -65,33 +64,64 @@ public class BackupDialog extends BaseDialog {
         findViewById(R.id.storagePermission).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (XXPermissions.isGranted(getContext(), DefaultConfig.StoragePermissionGroup())) {
-                    Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_ok), Toast.LENGTH_SHORT).show();
-                } else {
-                    XXPermissions.with(getContext())
-                            .permission(DefaultConfig.StoragePermissionGroup())
-                            .request(new OnPermissionCallback() {
-                                @Override
-                                public void onGranted(List<String> permissions, boolean all) {
-                                    if (all) {
-                                        adapter.setNewData(allBackup());
-                                        Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_ok), Toast.LENGTH_SHORT).show();
-                                    }
-                                }
-
-                                @Override
-                                public void onDenied(List<String> permissions, boolean never) {
-                                    if (never) {
-                                        Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_fail2), Toast.LENGTH_SHORT).show();
-                                        XXPermissions.startPermissionActivity((Activity) getContext(), permissions);
-                                    } else {
-                                        Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_fail1), Toast.LENGTH_SHORT).show();
-                                    }
-                                }
-                            });
-                }
+                requestStoragePermission(adapter);
             }
         });
+    }
+
+    /**
+     * 申请存储权限: Android 11+ 由 XXPermissions 自动跳"所有文件访问",
+     * Android 10 及以下自动用旧版读写权限; 整体 try/catch 避免个别 TV 盒子缺少系统设置页导致崩溃
+     */
+    private void requestStoragePermission(final BackupAdapter adapter) {
+        try {
+            if (isStorageGranted()) {
+                Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_ok), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            XXPermissions.with(getContext())
+                    .permission(DefaultConfig.StoragePermissionGroup())
+                    .request(new OnPermissionCallback() {
+                        @Override
+                        public void onGranted(List<String> permissions, boolean all) {
+                            if (all) {
+                                adapter.setNewData(allBackup());
+                                Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_ok), Toast.LENGTH_SHORT).show();
+                            }
+                        }
+
+                        @Override
+                        public void onDenied(List<String> permissions, boolean never) {
+                            if (never) {
+                                Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_fail2), Toast.LENGTH_SHORT).show();
+                                openPermissionSettings(permissions);
+                            } else {
+                                Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_fail1), Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    });
+        } catch (Throwable e) {
+            e.printStackTrace();
+            Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_fail1), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean isStorageGranted() {
+        try {
+            return XXPermissions.isGranted(getContext(), DefaultConfig.StoragePermissionGroup());
+        } catch (Throwable e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /** 跳转系统权限设置页(部分设备没有该页面, 捕获异常避免崩溃) */
+    private void openPermissionSettings(List<String> permissions) {
+        try {
+            XXPermissions.startPermissionActivity(getContext(), permissions);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
     }
 
     List<String> allBackup() {
@@ -100,6 +130,10 @@ public class BackupDialog extends BaseDialog {
             String root = Environment.getExternalStorageDirectory().getAbsolutePath();
             File file = new File(root + "/tvbox_backup/");
             File[] list = file.listFiles();
+            // 目录不存在或没有存储权限时 listFiles() 返回 null, 直接返回空列表
+            if (list == null) {
+                return result;
+            }
             Arrays.sort(list, new Comparator<File>() {
                 @Override
                 public int compare(File o1, File o2) {
@@ -177,6 +211,11 @@ public class BackupDialog extends BaseDialog {
     }
 
     void backup() {
+        // 没有存储权限时直接提示, 避免写 /sdcard 失败后留下半截备份目录
+        if (!isStorageGranted()) {
+            Toast.makeText(getContext(), HomeActivity.getRes().getString(R.string.set_permission_need), Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
             String root = Environment.getExternalStorageDirectory().getAbsolutePath();
             File file = new File(root + "/tvbox_backup/");
