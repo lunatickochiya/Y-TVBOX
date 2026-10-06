@@ -38,7 +38,7 @@ public final class X5Support {
         return false;
     }
 
-    public static X5WebViewHolder createWebView(Context context, X5WebViewHolder.Host host) {
+    public static WebViewHolder createWebView(Context context, WebViewHolder.Host host) {
         return null;
     }
 

@@ -5,12 +5,12 @@ import android.view.View;
 import java.util.Map;
 
 /**
- * X5(TBS)内核 WebView 的抽象封装.
+ * 嗅探 WebView 引擎的抽象封装(系统 WebView 之外的可选内核: X5 / Gecko).
  *
- * 实现类只存在于 x5 编译版本(app/src/x5), 普通版本由 app/src/std 提供空实现,
- * 这样主代码不需要引用 TBS SDK 的类, 普通版本也不会打包 X5 内核.
+ * 实现类位于各内核的编译版本源集(app/src/x5, app/src/gecko), 普通版本由空实现源集
+ * (app/src/std, app/src/geckostub)提供, 主代码不直接引用 TBS / GeckoView 的类.
  */
-public interface X5WebViewHolder {
+public interface WebViewHolder {
 
     interface Host {
         /**

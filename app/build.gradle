@@ -97,6 +97,12 @@ android {
             minSdkVersion 21
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        gecko {
+            // Gecko 内核版: 打包 Mozilla GeckoView(omni AAR 含全部 ABI, 打包时按 abiFilters 只留对应 ABI)
+            dimension = "mode"
+            minSdkVersion 21
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
@@ -108,12 +114,16 @@ android {
     }
 
     sourceSets {
-        // 非 x5 版本使用 app/src/std 下的 X5 空实现(普通版本不打包 TBS SDK),
-        // x5 版本使用 app/src/x5 下的 TBS 实现
+        // 各内核版本按需组合实现/空实现源集:
+        //   std = X5Support 空实现, geckostub = GeckoSupport 空实现, normal = pyLoader 桩
         normal.java.srcDir 'src/std/java'
+        normal.java.srcDir 'src/geckostub/java'
         python.java.srcDir 'src/std/java'
-        // x5 版本复用 normal 的 pyLoader 桩(不支持 Python 功能)
+        python.java.srcDir 'src/geckostub/java'
+        x5.java.srcDir 'src/geckostub/java'
         x5.java.srcDir 'src/normal/java'
+        gecko.java.srcDir 'src/std/java'
+        gecko.java.srcDir 'src/normal/java'
     }
 
     compileOptions {
@@ -178,6 +188,8 @@ dependencies {
     pythonImplementation project(":pyramid")
     // X5 内核版: 腾讯 TBS/X5 SDK
     x5Implementation 'com.tencent.tbs:tbssdk:44286'
+    // Gecko 内核版: Mozilla GeckoView(144 是最后支持 Android 5.0+ 的版本)
+    geckoImplementation 'org.mozilla.geckoview:geckoview-omni:144.0.20251027123126'
     
     kapt 'androidx.room:room-compiler:2.6.1'
     implementation 'com.github.alidili:FlowLayout:v1.5'
