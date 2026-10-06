@@ -189,7 +189,14 @@ dependencies {
     // X5 内核版: 腾讯 TBS/X5 SDK
     x5Implementation 'com.tencent.tbs:tbssdk:44286'
     // Gecko 内核版: Mozilla GeckoView(144 是最后支持 Android 5.0+ 的版本)
-    geckoImplementation 'org.mozilla.geckoview:geckoview-omni:144.0.20251027123126'
+    geckoImplementation('org.mozilla.geckoview:geckoview-omni:144.0.20251027123126') {
+        // Lifecycle 2.9.3 requires newer Gradle variant matching than this project uses.
+        exclude group: 'androidx.lifecycle', module: 'lifecycle-common'
+        exclude group: 'androidx.lifecycle', module: 'lifecycle-process'
+    }
+    // Keep Gecko builds compatible with Gradle 7.5 and the API 21 baseline.
+    geckoImplementation 'androidx.lifecycle:lifecycle-common:2.8.7'
+    geckoImplementation 'androidx.lifecycle:lifecycle-process:2.8.7'
     
     kapt 'androidx.room:room-compiler:2.6.1'
     implementation 'com.github.alidili:FlowLayout:v1.5'
