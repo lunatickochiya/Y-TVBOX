@@ -132,6 +132,11 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    kotlinOptions {
+        // GeckoView 144 传递依赖 kotlin-stdlib 2.2.10, 项目 Kotlin 编译器(1.9.25)需跳过元数据版本检查
+        freeCompilerArgs += ["-Xskip-metadata-version-check"]
+    }
+
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
