@@ -1895,7 +1895,7 @@ public class PlayActivity extends BaseActivity {
     private boolean initWebViewX5() {
         X5Support.init(mContext, null);
         if (!X5Support.canLoadX5(mContext)) {
-            Toast.makeText(mContext, "X5内核未就绪(正在后台下载)，已替换为系统自带WebView", Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext, "X5内核未就绪(请在设置中选择X5内核安装)，已替换为系统自带WebView", Toast.LENGTH_SHORT).show();
             return false;
         }
         mX5WebView = X5Support.createWebView(mContext, mX5Host);

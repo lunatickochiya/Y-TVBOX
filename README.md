@@ -30,10 +30,10 @@ URL 示例、网络前提（组播转发 / FCC 单播 NAT）与日志排查见
 
 ## X5 内核（可选版本）
 
-文件名带 `x5` 的 APK 内置腾讯 TBS/X5 SDK，用于替代老旧系统 WebView 做嗅探/解析：
-设置里把「嗅探Webview」切换为「X5内核」即可。首次使用会在后台自动下载 X5 内核
-（几十 MB，来自腾讯服务器），下载完成后自动生效，设置页会显示内核版本号。
-普通版本不包含 TBS SDK，选项里不会出现 X5。
+文件名带 `x5` 的 APK 内置腾讯 TBS/X5 SDK 与官方 X5 内核（按 ABI 打包，arm64 约 +53MB /
+armeabi 约 +45MB），用于替代老旧系统 WebView 做嗅探/解析：设置里把「嗅探Webview」
+切换为「X5内核」，首次选择会把内置内核安装到应用私有目录，**重启应用后生效**；
+之后设置页会显示内核版本号。整个过程不联网下载内核。
 
 === Source Code - Editing the app default settings ===
 /src/main/java/com/github/tvbox/osc/base/App.java

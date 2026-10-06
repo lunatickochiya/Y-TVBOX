@@ -537,10 +537,12 @@ public class ModelSettingFragment extends BaseLazyFragment {
                 } else if (webViewType == 2) {
                     if (X5Support.canLoadX5(mContext)) {
                         Toast.makeText(mContext, "X5内核已就绪(版本 " + X5Support.getVersion(mContext) + ")", Toast.LENGTH_SHORT).show();
+                    } else if (X5Support.installLocalCore(mContext)) {
+                        Toast.makeText(mContext, "已安装内置X5内核, 重启应用后生效", Toast.LENGTH_LONG).show();
+                    } else if (!X5Support.hasLocalCore(mContext)) {
+                        Toast.makeText(mContext, "当前版本未内置X5内核", Toast.LENGTH_LONG).show();
                     } else {
-                        Toast.makeText(mContext, "X5内核未就绪, 已开始后台下载, 稍后自动生效", Toast.LENGTH_LONG).show();
-                        X5Support.init(mContext, null);
-                        X5Support.startDownload(mContext);
+                        Toast.makeText(mContext, "X5内核安装失败", Toast.LENGTH_LONG).show();
                     }
                 }
             }

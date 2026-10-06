@@ -30,13 +30,12 @@ public final class X5Support {
         return 0;
     }
 
-    public static void startDownload(Context context) {
+    public static boolean hasLocalCore(Context context) {
+        return false;
     }
 
-    public static void reset(Context context) {
-    }
-
-    public static void setDownloadListener(DownloadListener listener) {
+    public static boolean installLocalCore(Context context) {
+        return false;
     }
 
     public static X5WebViewHolder createWebView(Context context, X5WebViewHolder.Host host) {
@@ -45,13 +44,5 @@ public final class X5Support {
 
     public interface InitCallback {
         void onResult(boolean x5Ready);
-    }
-
-    public interface DownloadListener {
-        void onDownloadProgress(int progress);
-
-        void onDownloadFinished(int code);
-
-        void onInstallFinished(int code);
     }
 }
