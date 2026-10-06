@@ -134,6 +134,22 @@ android {
     lint {
         disable 'UnsafeOptInUsageError'
     }
+
+    androidResources {
+        // X5 内核(.tbs)本身是压缩包, 不再二次压缩, 加快打包与运行时拷贝
+        noCompress 'tbs'
+    }
+}
+
+// X5 内置内核: 只为 x5 变体打包对应 ABI 的内核文件(app/src/x5core/<abi>/assets/tbs/*.tbs),
+// 普通/python 变体不包含, 避免 APK 体积膨胀
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        if (variant.productFlavors.any { it.second == "x5" }) {
+            def abi = variant.productFlavors.find { it.first == "abi" }?.second ?: "arm64"
+            variant.sources.assets?.addStaticSourceDirectory("src/x5core/${abi}")
+        }
+    }
 }
 
 dependencies {
