@@ -712,6 +712,7 @@ public class ApiConfig {
                 liveChannelItem.setChannelIndex(channelIndex++);
                 liveChannelItem.setChannelNum(++channelNum);
                 ArrayList<String> urls = DefaultConfig.safeJsonStringList(obj, "urls");
+                ArrayList<String> catchups = DefaultConfig.safeJsonStringList(obj, "catchups");
                 ArrayList<String> sourceNames = new ArrayList<>();
                 ArrayList<String> sourceUrls = new ArrayList<>();
                 int sourceIndex = 1;
@@ -726,6 +727,7 @@ public class ApiConfig {
                 }
                 liveChannelItem.setChannelSourceNames(sourceNames);
                 liveChannelItem.setChannelUrls(sourceUrls);
+                liveChannelItem.setChannelCatchups(catchups);
                 liveChannelGroup.getLiveChannels().add(liveChannelItem);
             }
             liveChannelGroupList.add(liveChannelGroup);
