@@ -40,6 +40,7 @@ import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.HistoryHelper;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.PlayerHelper;
+import com.github.tvbox.osc.webx.GeckoSupport;
 import com.github.tvbox.osc.webx.X5Support;
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.callback.FileCallback;
@@ -520,9 +521,15 @@ public class ModelSettingFragment extends BaseLazyFragment {
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
+                // 按当前版本支持的内核循环切换: 系统 → XWalk → X5(x5版) → Gecko(gecko版)
+                java.util.List<Integer> types = new java.util.ArrayList<>();
+                types.add(0);
+                types.add(1);
+                if (X5Support.isSupported()) types.add(2);
+                if (GeckoSupport.isSupported()) types.add(3);
                 int webViewType = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
-                int maxType = X5Support.isSupported() ? 3 : 2;
-                webViewType = (webViewType + 1) % maxType;
+                int idx = types.indexOf(webViewType);
+                webViewType = types.get((idx + 1) % types.size());
                 Hawk.put(HawkConfig.PARSE_WEBVIEW_TYPE, webViewType);
                 tvParseWebView.setText(getParseWebViewName());
                 if (webViewType == 1) {
@@ -544,6 +551,9 @@ public class ModelSettingFragment extends BaseLazyFragment {
                     } else {
                         Toast.makeText(mContext, "X5内核安装失败", Toast.LENGTH_LONG).show();
                     }
+                } else if (webViewType == 3) {
+                    GeckoSupport.init(mContext, null);
+                    Toast.makeText(mContext, "已启用 Gecko 内核(" + GeckoSupport.getVersionName() + ")", Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -897,7 +907,7 @@ public class ModelSettingFragment extends BaseLazyFragment {
         }
     }
 
-    /** 嗅探 WebView 名称: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本) */
+    /** 嗅探 WebView 名称: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本), 3=Gecko内核(仅 gecko 版本) */
     String getParseWebViewName() {
         int type = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
         if (type == 1) {
@@ -905,6 +915,9 @@ public class ModelSettingFragment extends BaseLazyFragment {
         }
         if (type == 2 && X5Support.isSupported()) {
             return X5Support.canLoadX5(mContext) ? "X5内核(v" + X5Support.getVersion(mContext) + ")" : "X5内核(未就绪)";
+        }
+        if (type == 3 && GeckoSupport.isSupported()) {
+            return "Gecko内核(" + GeckoSupport.getVersionName() + ")";
         }
         return "系统自带";
     }

@@ -1,0 +1,22 @@
+{
+  "manifest_version": 2,
+  "name": "YTVBOX Sniffer",
+  "version": "1.0",
+  "description": "Y-TVBOX 请求嗅探与脚本执行扩展",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sniffer@ytvbox.local"
+    }
+  },
+  "permissions": [
+    "geckoViewAddons",
+    "nativeMessaging",
+    "webRequest",
+    "webRequestBlocking",
+    "tabs",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  }
+}
