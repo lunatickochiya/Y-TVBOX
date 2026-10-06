@@ -127,7 +127,6 @@ public final class X5Support {
      */
     public static boolean installLocalCore(Context context) {
         if (sLocalCoreTried) return sLocalCoreInstalled;
-        sLocalCoreTried = true;
         Context app = context.getApplicationContext();
         try {
             if (getVersion(app) > 0) return false;
@@ -145,7 +144,8 @@ public final class X5Support {
             if (version <= 0) return false;
             File dir = new File(app.getFilesDir(), CORE_ASSET_DIR);
             if (!dir.exists() && !dir.mkdirs()) return false;
-            File coreFile = new File(dir, coreName);
+            // TBS 本地安装要求内核文件名 x5.tbs
+            File coreFile = new File(dir, "x5.tbs");
             if (!coreFile.exists() || coreFile.length() == 0) {
                 copyAsset(app, CORE_ASSET_DIR + "/" + coreName, coreFile);
             }
@@ -153,10 +153,13 @@ public final class X5Support {
             QbSdk.reset(app); // 清除旧的 TBS 状态(每个进程最多调用一次)
             QbSdk.installLocalTbsCore(app, version, coreFile.getAbsolutePath());
             sLocalCoreInstalled = true;
+            sLocalCoreTried = true;
             Log.i(TAG, "install local X5 core version=" + version + " path=" + coreFile);
             return true;
         } catch (Throwable e) {
             e.printStackTrace();
+            // 失败允许下次重试
+            sLocalCoreTried = false;
             return false;
         }
     }

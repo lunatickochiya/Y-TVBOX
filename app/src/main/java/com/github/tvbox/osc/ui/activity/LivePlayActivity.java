@@ -51,10 +51,13 @@ import com.github.tvbox.osc.ui.adapter.LiveSettingGroupAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingItemAdapter;
 import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
+import com.github.tvbox.osc.ui.dialog.LiveChannelVisibilityDialog;
 import com.github.tvbox.osc.ui.dialog.LivePasswordDialog;
+import com.github.tvbox.osc.ui.dialog.LiveUrlDialog;
 import com.github.tvbox.osc.util.EpgUtil;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
+import com.github.tvbox.osc.util.LiveChannelFilter;
 import com.github.tvbox.osc.util.HawkUtils;
 import com.github.tvbox.osc.util.JavaUtil;
 import com.github.tvbox.osc.util.XmltvEpgUtil;
@@ -1095,6 +1098,84 @@ public class LivePlayActivity extends BaseActivity {
         getWindow().setAttributes(attributes);
     }
 
+    /** 直播设置-直播地址 */
+    private void showLiveUrlDialog() {
+        String current = Hawk.get(HawkConfig.LIVE_URL, "");
+        LiveUrlDialog dialog = new LiveUrlDialog(this, "直播地址", "请输入直播源地址(m3u/txt)", current,
+                new LiveUrlDialog.OnSubmitListener() {
+                    @Override
+                    public void onSubmit(String url) {
+                        if (url == null || url.isEmpty()) {
+                            return;
+                        }
+                        Hawk.put(HawkConfig.LIVE_URL, url);
+                        Toast.makeText(mContext, "直播地址已保存, 正在重新加载频道...", Toast.LENGTH_SHORT).show();
+                        reloadLiveSource(url);
+                    }
+                });
+        dialog.show();
+    }
+
+    /** 直播设置-EPG地址 */
+    private void showEpgUrlDialog() {
+        String current = Hawk.get(HawkConfig.EPG_URL, "");
+        LiveUrlDialog dialog = new LiveUrlDialog(this, "EPG地址", "请输入EPG地址(支持 xml/xml.gz/json)", current,
+                new LiveUrlDialog.OnSubmitListener() {
+                    @Override
+                    public void onSubmit(String url) {
+                        Hawk.put(HawkConfig.EPG_URL, url);
+                        epgStringAddress = url;
+                        if (isCurrentLiveChannelValid()) {
+                            getEpg(new Date());
+                        }
+                        Toast.makeText(mContext, "EPG地址已保存", Toast.LENGTH_SHORT).show();
+                    }
+                });
+        dialog.show();
+    }
+
+    /** 直播设置-频道显示(隐藏分组/频道) */
+    private void showChannelVisibilityDialog() {
+        // 用完整列表(ApiConfig)做配置, 已隐藏的项才能重新勾选显示
+        List<LiveChannelGroup> all = ApiConfig.get().getChannelGroupList();
+        if (all == null || all.isEmpty()) {
+            Toast.makeText(mContext, "暂无频道数据", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        LiveChannelVisibilityDialog dialog = new LiveChannelVisibilityDialog(this, all,
+                new LiveChannelVisibilityDialog.OnConfirmListener() {
+                    @Override
+                    public void onConfirm(ArrayList<String> hidden) {
+                        LiveChannelFilter.saveHidden(hidden);
+                        refreshLiveChannelList();
+                    }
+                });
+        dialog.show();
+    }
+
+    /** 用新的直播地址重新加载频道列表(与 ApiConfig 的代理地址格式一致) */
+    private void reloadLiveSource(String liveUrl) {
+        try {
+            String ext = Base64.encodeToString(liveUrl.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
+            loadProxyLives("http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + ext);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+    }
+
+    /** 应用频道隐藏设置, 重建频道列表 */
+    private void refreshLiveChannelList() {
+        List<LiveChannelGroup> filtered = LiveChannelFilter.filter(ApiConfig.get().getChannelGroupList());
+        if (filtered.isEmpty()) {
+            Toast.makeText(mContext, "所有频道都被隐藏了, 请重新勾选", Toast.LENGTH_LONG).show();
+            return;
+        }
+        liveChannelGroupList.clear();
+        liveChannelGroupList.addAll(filtered);
+        initLiveState();
+        Toast.makeText(mContext, "频道显示设置已更新", Toast.LENGTH_SHORT).show();
+    }
+
     //显示设置列表
     private void showSettingGroup() {
         mBack.setVisibility(View.INVISIBLE);
@@ -1845,7 +1926,20 @@ public class LivePlayActivity extends BaseActivity {
                 }
                 liveSettingItemAdapter.selectItem(position, select, false);
                 break;
-            case 5:// 直播历史 takagen99 : Live History
+            case 5:// 直播配置: 直播地址 / EPG地址 / 频道显示
+                switch (position) {
+                    case 0:
+                        showLiveUrlDialog();
+                        break;
+                    case 1:
+                        showEpgUrlDialog();
+                        break;
+                    case 2:
+                        showChannelVisibilityDialog();
+                        break;
+                }
+                break;
+            case 6:// 直播历史 takagen99 : Live History
                 switch (position) {
                     case 0:
                         // takagen99 : Added Live History list selection - 直播列表
@@ -1882,7 +1976,7 @@ public class LivePlayActivity extends BaseActivity {
                         break;
                 }
                 break;
-            case 6:// 退出直播 takagen99 : Added Exit Option
+            case 7:// 退出直播 takagen99 : Added Exit Option
                 switch (position) {
                     case 0:
                         finish();
@@ -1905,8 +1999,10 @@ public class LivePlayActivity extends BaseActivity {
         if (list.size() == 1 && list.get(0).getGroupName().startsWith("http://127.0.0.1")) {
             loadProxyLives(list.get(0).getGroupName());
         } else {
+            List<LiveChannelGroup> filtered = LiveChannelFilter.filter(list);
+            if (filtered.isEmpty()) filtered = list;
             liveChannelGroupList.clear();
-            liveChannelGroupList.addAll(list);
+            liveChannelGroupList.addAll(filtered);
             showSuccess();
             initLiveState();
         }
@@ -1951,7 +2047,9 @@ public class LivePlayActivity extends BaseActivity {
                     return;
                 }
                 liveChannelGroupList.clear();
-                liveChannelGroupList.addAll(list);
+                List<LiveChannelGroup> filtered = LiveChannelFilter.filter(list);
+                if (filtered.isEmpty()) filtered = list;
+                liveChannelGroupList.addAll(filtered);
 
                 mHandler.post(new Runnable() {
                     @Override
@@ -2024,13 +2122,14 @@ public class LivePlayActivity extends BaseActivity {
     }
 
     private void initLiveSettingGroupList() {
-        ArrayList<String> groupNames = new ArrayList<>(Arrays.asList("线路选择", "画面比例", "播放解码", "超时换源", "偏好设置", "直播地址", "退出直播"));
+        ArrayList<String> groupNames = new ArrayList<>(Arrays.asList("线路选择", "画面比例", "播放解码", "超时换源", "偏好设置", "直播配置", "直播历史", "退出直播"));
         ArrayList<ArrayList<String>> itemsArrayList = new ArrayList<>();
         ArrayList<String> sourceItems = new ArrayList<>();
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
         ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度"));
+        ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("直播地址", "EPG地址", "频道显示"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
         itemsArrayList.add(sourceItems);
@@ -2038,6 +2137,7 @@ public class LivePlayActivity extends BaseActivity {
         itemsArrayList.add(playerDecoderItems);
         itemsArrayList.add(timeoutItems);
         itemsArrayList.add(personalSettingItems);
+        itemsArrayList.add(liveConfigItems);
         itemsArrayList.add(liveAdd);
         itemsArrayList.add(exitConfirm);
 
