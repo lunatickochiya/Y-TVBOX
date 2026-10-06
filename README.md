@@ -33,14 +33,19 @@ armeabi 约 +45MB），用于替代老旧系统 WebView 做嗅探/解析：设�
 切换为「X5内核」，首次选择会把内置内核安装到应用私有目录，**重启应用后生效**；
 之后设置页会显示内核版本号。整个过程不联网下载内核。
 
-> Android 4.4 分支：X5 / Gecko 内核版都要求 **Android 5.0+**，
-> 4.4 设备请安装文件名不带 `x5` / `gecko` 的普通版本。
+> X5 内核 native 引擎（`libmttwebview.so`）按 API 23 构建、并依赖 API 21+ 符号，
+> 最低需要 **Android 5.0**（腾讯官方支持 Android 5-13）；Android 4.4 设备请安装
+> 普通版或 `gecko` 版。
 
 ## Gecko 内核（可选版本）
 
-文件名带 `gecko` 的 APK 内置 Mozilla GeckoView 144（按 ABI 打包，约 +80MB；144 是最后支持
-Android 5.0+ 的版本），用现代 Firefox 内核替代老旧系统 WebView 做嗅探/解析：设置里把
-「嗅探Webview」切换为「Gecko内核」即可，无需下载、无需重启。
+文件名带 `gecko` 的 APK 内置 Mozilla GeckoView **118**（按 ABI 打包，约 +60MB），用现代
+Firefox 内核替代老旧系统 WebView 做嗅探/解析：设置里把「嗅探Webview」切换为「Gecko内核」
+即可，无需下载、无需重启。
+
+> 4.4 分支的 gecko 版特意选用 GeckoView 118：它是最后一个支持 Android 4.1+（API 16）的
+> 版本，armeabi-v7a 的 native 库（libxul.so 等）minAPI=16，**Android 4.4 设备可直接使用**；
+> 119 及以上要求 Android 5.0+，仅在 main / dev 分支使用 GeckoView 144。
 
 请求嗅探通过内置 WebExtension（`assets/extensions/sniffer`）的 `webRequest` 上报完成，
 点击选择器（evaluateScript）通过扩展的 native 端口在页面里执行 JS，与系统/X5 内核行为一致。

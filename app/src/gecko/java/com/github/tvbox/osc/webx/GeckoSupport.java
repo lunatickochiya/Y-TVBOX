@@ -115,8 +115,7 @@ public final class GeckoSupport {
             session.setNavigationDelegate(new GeckoSession.NavigationDelegate() {
                 @Override
                 public void onLocationChange(GeckoSession s, String url,
-                                             List<GeckoSession.PermissionDelegate.ContentPermission> perms,
-                                             Boolean hasUserGesture) {
+                                             List<GeckoSession.PermissionDelegate.ContentPermission> perms) {
                     currentUrl = url;
                 }
 

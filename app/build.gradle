@@ -93,14 +93,18 @@ android {
         }
         x5 {
             // X5 内核版: 在 Java 版基础上打包腾讯 TBS/X5 SDK, 提供 X5 WebView 嗅探内核
+            // X5 内核 native 引擎(libmttwebview.so)按 API 23 构建, 且依赖 API 21+ 符号,
+            // Android 4.4 无法加载, 故 x5 变体保持 minSdk 21(腾讯官方支持 Android 5.0-13)
             dimension = "mode"
             minSdkVersion 21
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         gecko {
-            // Gecko 内核版: 打包 Mozilla GeckoView(omni AAR 含全部 ABI, 打包时按 abiFilters 只留对应 ABI)
+            // Gecko 内核版: 打包 Mozilla GeckoView 118(omni AAR 含全部 ABI, 打包时按 abiFilters 只留对应 ABI)
+            // 118 是最后一个支持 API 16 的版本(119+ 要求 Android 5.0), armeabi-v7a 的
+            // libxul.so 等 native 库 minAPI=16, 可在 Android 4.4 上运行, 故 gecko 变体 minSdk 19
             dimension = "mode"
-            minSdkVersion 21
+            minSdkVersion 19
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -130,11 +134,6 @@ android {
         coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-    }
-
-    kotlinOptions {
-        // GeckoView 144 传递依赖 kotlin-stdlib 2.2.10, 项目 Kotlin 编译器(1.9.25)需跳过元数据版本检查
-        freeCompilerArgs += ["-Xskip-metadata-version-check"]
     }
 
     lintOptions {
@@ -195,20 +194,10 @@ dependencies {
     pythonImplementation project(":pyramid")
     // X5 内核版: 腾讯 TBS/X5 SDK
     x5Implementation 'com.tencent.tbs:tbssdk:44286'
-    // Gecko 内核版: Mozilla GeckoView(144 是最后支持 Android 5.0+ 的版本)
-    geckoImplementation('org.mozilla.geckoview:geckoview-omni:144.0.20251027123126') {
-        // GeckoView's latest AndroidX dependencies require newer Android build tools.
-        exclude group: 'androidx.annotation', module: 'annotation-experimental'
-        exclude group: 'androidx.core', module: 'core'
-        exclude group: 'androidx.lifecycle', module: 'lifecycle-common'
-        exclude group: 'androidx.lifecycle', module: 'lifecycle-process'
-    }
-    // Keep Gecko builds compatible with compileSdk 34, AGP 7.4.2 and the API 21 baseline.
-    geckoImplementation 'androidx.annotation:annotation-experimental:1.4.1'
-    geckoImplementation 'androidx.core:core:1.13.1'
-    geckoImplementation 'androidx.core:core-ktx:1.13.1'
-    geckoImplementation 'androidx.lifecycle:lifecycle-common:2.8.7'
-    geckoImplementation 'androidx.lifecycle:lifecycle-process:2.8.7'
+    // Gecko 内核版: Mozilla GeckoView 118(最后支持 Android 4.4 的版本, native 库 minAPI=16;
+    // 其依赖 androidx.annotation 1.6.0 / lifecycle 2.6.1 / kotlin-stdlib-jdk8 1.8.21
+    // 均兼容 compileSdk 34 / AGP 7.4.2 / minSdk 19, 无需像 144 那样排除并钉版本)
+    geckoImplementation 'org.mozilla.geckoview:geckoview-omni:118.0.20231009140911'
     
     kapt 'androidx.room:room-compiler:2.6.1'
     implementation 'com.github.alidili:FlowLayout:v1.5'
