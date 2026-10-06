@@ -100,3 +100,11 @@ lint/tmp/
 
 *.hprof
 output-metadata.json
+
+# 签名密钥库 / 密钥信息（切勿提交，见 signing/）
+signing/
+*.jks
+*.keystore
+*.p12
+ytvbox-keystore-base64.txt
+ytvbox-signing-info.txt
