@@ -31,7 +31,7 @@ jobs:
           cache: gradle
 
       - name: Set release tag
-        run: echo "RELEASE_TAG=Y-TVBOX-$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_ENV"
+        run: echo "RELEASE_TAG=Y-TVBOX-dev-$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_ENV"
 
       - name: Configure Android SDK
         run: printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
