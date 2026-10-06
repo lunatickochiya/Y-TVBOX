@@ -33,6 +33,9 @@ armeabi 约 +45MB），用于替代老旧系统 WebView 做嗅探/解析：设�
 切换为「X5内核」，首次选择会把内置内核安装到应用私有目录，**重启应用后生效**；
 之后设置页会显示内核版本号。整个过程不联网下载内核。
 
+> Android 4.4 分支：X5 内核版要求 **Android 5.0+**（内核仅支持 Android 5–13），
+> 4.4 设备请安装文件名不带 `x5` 的普通版本。
+
 === Source Code - Editing the app default settings ===
 /src/main/java/com/github/tvbox/osc/base/App.java
 
