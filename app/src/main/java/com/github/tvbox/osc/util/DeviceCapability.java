@@ -28,7 +28,14 @@ public class DeviceCapability {
     private final int mMemoryClass;
     private final boolean mHasHevcHwDecoder;
     private final boolean mSupportsTunneledPlayback;
-    private final boolean mIsMtkTv;
+    private final int mSocVendor;
+
+    /** SoC 厂商 */
+    public static final int SOC_OTHER = 0;
+    public static final int SOC_MTK = 1;
+    public static final int SOC_AMLOGIC = 2;
+    public static final int SOC_ALLWINNER = 3;
+    public static final int SOC_ROCKCHIP = 4;
 
     private DeviceCapability(Context context) {
         Context appCtx = context.getApplicationContext();
@@ -36,7 +43,8 @@ public class DeviceCapability {
         mMemoryClass = detectMemoryClass(appCtx);
         mHasHevcHwDecoder = hasHardwareDecoder("video/hevc");
         mSupportsTunneledPlayback = detectTunneledPlayback("video/hevc");
-        mIsMtkTv = detectMtkTv();
+        mSocVendor = detectSocVendor();
+        Log.i(TAG, "memoryClass=" + mMemoryClass + " soc=" + socVendorName(mSocVendor) + " tv=" + mIsTV);
     }
 
     public static DeviceCapability get(Context context) {
@@ -109,15 +117,63 @@ public class DeviceCapability {
         return false;
     }
 
-    private static boolean detectMtkTv() {
-        MediaCodecList codecList = new MediaCodecList(MediaCodecList.ALL_CODECS);
-        for (MediaCodecInfo codecInfo : codecList.getCodecInfos()) {
-            if (codecInfo.isEncoder()) continue;
-            if (codecInfo.getName().startsWith("c2.mtk.")) {
-                return true;
+    /**
+     * 电视盒子 SoC 厂商识别: 先看硬解解码器名字(最可靠), 再看 Build 字段.
+     * 用于 IJK 硬解排序等按厂商区分的处理.
+     */
+    private static int detectSocVendor() {
+        try {
+            MediaCodecList codecList = new MediaCodecList(MediaCodecList.ALL_CODECS);
+            for (MediaCodecInfo codecInfo : codecList.getCodecInfos()) {
+                if (codecInfo.isEncoder()) continue;
+                String name = codecInfo.getName().toLowerCase();
+                if (name.startsWith("c2.mtk.") || name.startsWith("omx.mtk.")) return SOC_MTK;
+                if (name.startsWith("c2.amlogic.") || name.startsWith("omx.amlogic.")) return SOC_AMLOGIC;
+                if (name.startsWith("c2.allwinner.") || name.startsWith("omx.allwinner.") || name.contains("cedar")) {
+                    return SOC_ALLWINNER;
+                }
+                if (name.startsWith("c2.rk.") || name.startsWith("omx.rk.")
+                        || name.startsWith("c2.rockchip.") || name.startsWith("omx.rockchip.")) {
+                    return SOC_ROCKCHIP;
+                }
             }
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
-        return false;
+        String hardware = (Build.HARDWARE + " " + Build.BOARD + " " + Build.DEVICE + " " + Build.PRODUCT).toLowerCase();
+        if (hardware.contains("amlogic") || hardware.contains("meson") || hardware.contains("gxbb")
+                || hardware.contains("gxl") || hardware.contains("g12") || hardware.contains("sm1")
+                || hardware.contains("sc2")) {
+            return SOC_AMLOGIC;
+        }
+        if (hardware.contains("allwinner") || hardware.contains("sun50iw") || hardware.contains("sun8iw")
+                || hardware.contains("sun7i") || hardware.contains("sun6i") || hardware.contains("exdroid")
+                || hardware.contains("cedar")) {
+            return SOC_ALLWINNER;
+        }
+        if (hardware.contains("rockchip") || hardware.contains("rk30") || hardware.contains("rk32")
+                || hardware.contains("rk33") || hardware.contains("rk35") || hardware.contains("rk3588")) {
+            return SOC_ROCKCHIP;
+        }
+        if (hardware.contains("mediatek") || hardware.matches(".*\\bmt[0-9]{4}.*")) {
+            return SOC_MTK;
+        }
+        return SOC_OTHER;
+    }
+
+    public static String socVendorName(int vendor) {
+        switch (vendor) {
+            case SOC_MTK:
+                return "MediaTek";
+            case SOC_AMLOGIC:
+                return "Amlogic";
+            case SOC_ALLWINNER:
+                return "Allwinner";
+            case SOC_ROCKCHIP:
+                return "Rockchip";
+            default:
+                return "Other";
+        }
     }
 
     private static int detectMemoryClass(Context context) {
@@ -152,7 +208,24 @@ public class DeviceCapability {
     }
 
     public boolean isMtkTv() {
-        return mIsMtkTv;
+        return mSocVendor == SOC_MTK;
+    }
+
+    /** SoC 厂商: SOC_MTK / SOC_AMLOGIC / SOC_ALLWINNER / SOC_OTHER */
+    public int getSocVendor() {
+        return mSocVendor;
+    }
+
+    public boolean isAmlogic() {
+        return mSocVendor == SOC_AMLOGIC;
+    }
+
+    public boolean isAllwinner() {
+        return mSocVendor == SOC_ALLWINNER;
+    }
+
+    public boolean isRockchip() {
+        return mSocVendor == SOC_ROCKCHIP;
     }
 
     public boolean shouldUseSurfaceView() {

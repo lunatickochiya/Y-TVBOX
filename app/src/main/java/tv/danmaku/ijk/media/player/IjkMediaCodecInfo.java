@@ -147,8 +147,13 @@ public class IjkMediaCodecInfo {
 
         name = name.toLowerCase(Locale.US);
         int rank = RANK_NO_SENSE;
-        if (name.startsWith("c2.mtk.")) {
-            // MediaTek TV SoC (Codec2 framework, e.g. MT5896)
+        if (name.startsWith("c2.mtk.") || name.startsWith("c2.amlogic.") || name.startsWith("c2.allwinner.")
+                || name.startsWith("c2.rk.") || name.startsWith("c2.rockchip.")) {
+            // Codec2 硬解: MTK / Amlogic / Allwinner / Rockchip 电视盒子 (Android 9+)
+            rank = RANK_TESTED;
+        } else if (name.startsWith("omx.amlogic.") || name.startsWith("omx.allwinner.") || name.contains("cedar")
+                || name.startsWith("omx.rk.") || name.startsWith("omx.rockchip.")) {
+            // Amlogic / Allwinner(CedarX) / Rockchip 厂商 OMX 硬解 (Android 5-7)
             rank = RANK_TESTED;
         } else if (!name.startsWith("omx.")) {
             rank = RANK_NON_STANDARD;
