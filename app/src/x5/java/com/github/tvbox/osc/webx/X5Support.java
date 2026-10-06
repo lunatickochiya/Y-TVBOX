@@ -12,26 +12,33 @@ import com.tencent.smtt.export.external.interfaces.SslErrorHandler;
 import com.tencent.smtt.export.external.interfaces.WebResourceRequest;
 import com.tencent.smtt.export.external.interfaces.WebResourceResponse;
 import com.tencent.smtt.sdk.QbSdk;
-import com.tencent.smtt.sdk.TbsDownloader;
-import com.tencent.smtt.sdk.TbsListener;
 import com.tencent.smtt.sdk.WebChromeClient;
 import com.tencent.smtt.sdk.WebSettings;
 import com.tencent.smtt.sdk.WebView;
 import com.tencent.smtt.sdk.WebViewClient;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * X5(TBS)内核实现, 只存在于 x5 编译版本(app/src/x5).
  *
- * 内核未安装时 {@link #init} 会让 TBS 在后台自动下载,
- * 下载完成后 {@link #canLoadX5} 返回 true, 即可创建 X5 WebView.
+ * 内核为内置方案: APK 里打包了对应 ABI 的官方内核文件(assets/tbs/tbs_core_*.tbs),
+ * 安装时复制到应用私有目录并调用 {@link QbSdk#installLocalTbsCore} 本地安装,
+ * 不从网络下载; 安装完成后需重启应用生效.
  */
 public final class X5Support {
 
     private static final String TAG = "YTVBoxX5";
+    /** 内置内核目录(assets/tbs/tbs_core_<版本>_...tbs) */
+    private static final String CORE_ASSET_DIR = "tbs";
+    /** 每个进程只尝试安装一次内置内核 */
+    private static boolean sLocalCoreTried = false;
+    private static boolean sLocalCoreInstalled = false;
 
     private X5Support() {
     }
@@ -40,10 +47,43 @@ public final class X5Support {
         return true;
     }
 
-    /** 初始化 X5 内核, 未安装时 TBS 会在后台自动下载 */
-    public static void init(Context context, final InitCallback callback) {
+    /** 已安装的内核版本, 0 表示未安装 */
+    public static int getVersion(Context context) {
         try {
-            QbSdk.initX5Environment(context.getApplicationContext(), new QbSdk.PreInitCallback() {
+            return QbSdk.getTbsVersion(context.getApplicationContext());
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /** X5 内核是否可用(已安装并加载) */
+    public static boolean canLoadX5(Context context) {
+        try {
+            return QbSdk.canLoadX5(context.getApplicationContext());
+        } catch (Throwable e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 初始化 X5: 内核已安装时加载, 否则不做任何事(由设置界面触发本地安装),
+     * 不使用 TBS 的联网下载.
+     */
+    public static void init(Context context, final InitCallback callback) {
+        Context app = context.getApplicationContext();
+        if (getVersion(app) > 0) {
+            initEnv(app, callback);
+            return;
+        }
+        if (callback != null) {
+            callback.onResult(false);
+        }
+    }
+
+    private static void initEnv(Context app, final InitCallback callback) {
+        try {
+            QbSdk.initX5Environment(app, new QbSdk.PreInitCallback() {
                 @Override
                 public void onCoreInitFinished() {
                 }
@@ -64,70 +104,103 @@ public final class X5Support {
         }
     }
 
-    /** X5 内核是否可用 */
-    public static boolean canLoadX5(Context context) {
+    /** 是否内置了内核文件(assets/tbs/*.tbs) */
+    public static boolean hasLocalCore(Context context) {
         try {
-            return QbSdk.canLoadX5(context.getApplicationContext());
+            String[] files = context.getAssets().list(CORE_ASSET_DIR);
+            if (files != null) {
+                for (String f : files) {
+                    if (f.endsWith(".tbs")) return true;
+                }
+            }
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    /**
+     * 安装内置的 X5 内核(assets/tbs/tbs_core_<版本>_...tbs):
+     * 复制到私有目录后调用 QbSdk.installLocalTbsCore, 重启应用生效.
+     *
+     * @return 本次是否触发了安装
+     */
+    public static boolean installLocalCore(Context context) {
+        if (sLocalCoreTried) return sLocalCoreInstalled;
+        sLocalCoreTried = true;
+        Context app = context.getApplicationContext();
+        try {
+            if (getVersion(app) > 0) return false;
+            String[] files = app.getAssets().list(CORE_ASSET_DIR);
+            if (files == null || files.length == 0) return false;
+            String coreName = null;
+            for (String f : files) {
+                if (f.endsWith(".tbs")) {
+                    coreName = f;
+                    break;
+                }
+            }
+            if (coreName == null) return false;
+            int version = parseCoreVersion(coreName);
+            if (version <= 0) return false;
+            File dir = new File(app.getFilesDir(), CORE_ASSET_DIR);
+            if (!dir.exists() && !dir.mkdirs()) return false;
+            File coreFile = new File(dir, coreName);
+            if (!coreFile.exists() || coreFile.length() == 0) {
+                copyAsset(app, CORE_ASSET_DIR + "/" + coreName, coreFile);
+            }
+            if (!coreFile.exists() || coreFile.length() == 0) return false;
+            QbSdk.reset(app); // 清除旧的 TBS 状态(每个进程最多调用一次)
+            QbSdk.installLocalTbsCore(app, version, coreFile.getAbsolutePath());
+            sLocalCoreInstalled = true;
+            Log.i(TAG, "install local X5 core version=" + version + " path=" + coreFile);
+            return true;
         } catch (Throwable e) {
             e.printStackTrace();
             return false;
         }
     }
 
-    /** X5 内核版本号, 0 表示未安装 */
-    public static int getVersion(Context context) {
+    /** tbs_core_046515_... -> 46515 */
+    private static int parseCoreVersion(String fileName) {
         try {
-            return QbSdk.getTbsVersion(context.getApplicationContext());
+            String prefix = "tbs_core_";
+            int start = fileName.indexOf(prefix);
+            if (start < 0) return 0;
+            start += prefix.length();
+            int end = fileName.indexOf('_', start);
+            String versionStr = end > start ? fileName.substring(start, end) : fileName.substring(start);
+            return Integer.parseInt(versionStr);
         } catch (Throwable e) {
             return 0;
         }
     }
 
-    /** 主动触发内核下载 */
-    public static void startDownload(Context context) {
+    private static void copyAsset(Context context, String assetName, File dest) throws Exception {
+        InputStream in = null;
+        FileOutputStream out = null;
         try {
-            TbsDownloader.startDownload(context.getApplicationContext());
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
-    }
-
-    /** 重置内核(删除后重新下载) */
-    public static void reset(Context context) {
-        try {
-            QbSdk.reset(context.getApplicationContext());
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
-    }
-
-    /** 下载/安装进度监听 */
-    public static void setDownloadListener(final DownloadListener listener) {
-        try {
-            QbSdk.setTbsListener(new TbsListener() {
-                @Override
-                public void onDownloadFinish(int code) {
-                    if (listener != null) {
-                        listener.onDownloadFinished(code);
-                    }
+            in = context.getAssets().open(assetName);
+            out = new FileOutputStream(dest);
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                out.write(buffer, 0, read);
+            }
+            out.flush();
+        } finally {
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (Exception ignored) {
                 }
-
-                @Override
-                public void onInstallFinish(int code) {
-                    if (listener != null) {
-                        listener.onInstallFinished(code);
-                    }
+            }
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (Exception ignored) {
                 }
-
-                @Override
-                public void onDownloadProgress(int progress) {
-                    if (listener != null) {
-                        listener.onDownloadProgress(progress);
-                    }
-                }
-            });
-        } catch (Throwable e) {
-            e.printStackTrace();
+            }
         }
     }
 
@@ -142,14 +215,6 @@ public final class X5Support {
 
     public interface InitCallback {
         void onResult(boolean x5Ready);
-    }
-
-    public interface DownloadListener {
-        void onDownloadProgress(int progress);
-
-        void onDownloadFinished(int code);
-
-        void onInstallFinished(int code);
     }
 
     private static class Holder implements X5WebViewHolder {
