@@ -40,12 +40,42 @@ public class LiveController extends BaseController {
         void playStateChanged(int playState);
 
         void changeSource(int direction);
+
+        /** 触屏左半屏上下滑动切台: 1=下一个频道, -1=上一个频道 */
+        void changeChannel(int direction);
     }
 
     private LiveController.LiveControlListener listener = null;
 
     public void setListener(LiveController.LiveControlListener listener) {
         this.listener = listener;
+    }
+
+    // 触屏左半屏上下滑动切台: 累计滑动距离, 超过阈值换台(带冷却, 手势结束后自动清零)
+    private float channelSlideDelta = 0f;
+    private long channelSlideLastTime = 0L;
+    private long channelSwitchLastTime = 0L;
+
+    /**
+     * 直播界面左半屏上下滑动改为切换频道(亮度调整已移到直播设置).
+     * deltaY &gt; 0 表示手指上滑 → 下一个频道.
+     */
+    @Override
+    protected void slideToChangeBrightness(float deltaY) {
+        long now = System.currentTimeMillis();
+        if (now - channelSlideLastTime > 300) {
+            channelSlideDelta = 0f;
+        }
+        channelSlideLastTime = now;
+        channelSlideDelta += deltaY;
+        int threshold = Math.max(getMeasuredHeight() / 8, 60);
+        if (Math.abs(channelSlideDelta) >= threshold && now - channelSwitchLastTime >= 400) {
+            if (listener != null) {
+                listener.changeChannel(channelSlideDelta > 0 ? 1 : -1);
+            }
+            channelSlideDelta = 0f;
+            channelSwitchLastTime = now;
+        }
     }
 
     @Override
