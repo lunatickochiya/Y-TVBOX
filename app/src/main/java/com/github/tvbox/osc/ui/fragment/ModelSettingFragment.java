@@ -521,40 +521,7 @@ public class ModelSettingFragment extends BaseLazyFragment {
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
-                // 按当前版本支持的内核循环切换: 系统 → XWalk → X5(x5版) → Gecko(gecko版)
-                java.util.List<Integer> types = new java.util.ArrayList<>();
-                types.add(0);
-                types.add(1);
-                if (X5Support.isSupported()) types.add(2);
-                if (GeckoSupport.isSupported()) types.add(3);
-                int webViewType = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
-                int idx = types.indexOf(webViewType);
-                webViewType = types.get((idx + 1) % types.size());
-                Hawk.put(HawkConfig.PARSE_WEBVIEW_TYPE, webViewType);
-                tvParseWebView.setText(getParseWebViewName());
-                if (webViewType == 1) {
-                    Toast.makeText(mContext, "注意: XWalkView只适用于部分低Android版本，Android5.0以上推荐使用系统自带", Toast.LENGTH_LONG).show();
-                    XWalkInitDialog dialog = new XWalkInitDialog(mContext);
-                    dialog.setOnListener(new XWalkInitDialog.OnListener() {
-                        @Override
-                        public void onchange() {
-                        }
-                    });
-                    dialog.show();
-                } else if (webViewType == 2) {
-                    if (X5Support.canLoadX5(mContext)) {
-                        Toast.makeText(mContext, "X5内核已就绪(版本 " + X5Support.getVersion(mContext) + ")", Toast.LENGTH_SHORT).show();
-                    } else if (X5Support.installLocalCore(mContext)) {
-                        Toast.makeText(mContext, "已安装内置X5内核, 重启应用后生效", Toast.LENGTH_LONG).show();
-                    } else if (!X5Support.hasLocalCore(mContext)) {
-                        Toast.makeText(mContext, "当前版本未内置X5内核", Toast.LENGTH_LONG).show();
-                    } else {
-                        Toast.makeText(mContext, "X5内核安装失败", Toast.LENGTH_LONG).show();
-                    }
-                } else if (webViewType == 3) {
-                    GeckoSupport.init(mContext, null);
-                    Toast.makeText(mContext, "已启用 Gecko 内核(" + GeckoSupport.getVersionName() + ")", Toast.LENGTH_SHORT).show();
-                }
+                showParseWebViewDialog();
             }
         });
         // Select System Render ( Surface/Texture View ) ---------------------
@@ -907,19 +874,98 @@ public class ModelSettingFragment extends BaseLazyFragment {
         }
     }
 
-    /** 嗅探 WebView 名称: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本), 3=Gecko内核(仅 gecko 版本) */
+    /** 嗅探WebView 名称: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本), 3=Gecko内核(仅 gecko 版本) */
     String getParseWebViewName() {
         int type = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
         if (type == 1) {
             return "XWalkView";
         }
         if (type == 2 && X5Support.isSupported()) {
-            return X5Support.canLoadX5(mContext) ? "X5内核(v" + X5Support.getVersion(mContext) + ")" : "X5内核(未就绪)";
+            int version = X5Support.getVersion(mContext);
+            return version > 0 ? "X5内核(v" + version + ")" : "X5内核(未就绪)";
         }
         if (type == 3 && GeckoSupport.isSupported()) {
             return "Gecko内核(" + GeckoSupport.getVersionName() + ")";
         }
         return "系统自带";
+    }
+
+    /** 嗅探Web内核: 列表选择(不再点击循环切换) */
+    private void showParseWebViewDialog() {
+        final List<Integer> types = new ArrayList<>();
+        final List<String> names = new ArrayList<>();
+        types.add(0);
+        names.add("系统自带");
+        types.add(1);
+        names.add("XWalkView");
+        if (X5Support.isSupported()) {
+            types.add(2);
+            names.add("X5内核");
+        }
+        if (GeckoSupport.isSupported()) {
+            types.add(3);
+            names.add("Gecko内核");
+        }
+        int current = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
+        int selected = types.indexOf(current);
+        if (selected < 0) selected = 0;
+        SelectDialog<String> dialog = new SelectDialog<>(mContext);
+        dialog.setTip("嗅探Web内核");
+        dialog.setAdapter(null, new SelectDialogAdapter.SelectDialogInterface<String>() {
+            @Override
+            public void click(String value, int pos) {
+                int type = types.get(pos);
+                Hawk.put(HawkConfig.PARSE_WEBVIEW_TYPE, type);
+                tvParseWebView.setText(getParseWebViewName());
+                onParseWebViewSelected(type);
+                dialog.dismiss();
+            }
+
+            @Override
+            public String getDisplay(String val) {
+                return val;
+            }
+        }, new DiffUtil.ItemCallback<String>() {
+            @Override
+            public boolean areItemsTheSame(@NonNull String oldItem, @NonNull String newItem) {
+                return oldItem.equals(newItem);
+            }
+
+            @Override
+            public boolean areContentsTheSame(@NonNull String oldItem, @NonNull String newItem) {
+                return oldItem.equals(newItem);
+            }
+        }, names, selected);
+        dialog.show();
+    }
+
+    /** 选择内核后的处理(安装/提示) */
+    private void onParseWebViewSelected(int webViewType) {
+        if (webViewType == 1) {
+            Toast.makeText(mContext, "注意: XWalkView只适用于部分低Android版本，Android5.0以上推荐使用系统自带", Toast.LENGTH_LONG).show();
+            XWalkInitDialog dialog = new XWalkInitDialog(mContext);
+            dialog.setOnListener(new XWalkInitDialog.OnListener() {
+                @Override
+                public void onchange() {
+                }
+            });
+            dialog.show();
+        } else if (webViewType == 2) {
+            int version = X5Support.getVersion(mContext);
+            if (version > 0) {
+                X5Support.init(mContext, null);
+                Toast.makeText(mContext, "X5内核已就绪(版本 " + version + ")", Toast.LENGTH_SHORT).show();
+            } else if (X5Support.installLocalCore(mContext)) {
+                Toast.makeText(mContext, "已安装内置X5内核, 重启应用后生效", Toast.LENGTH_LONG).show();
+            } else if (!X5Support.hasLocalCore(mContext)) {
+                Toast.makeText(mContext, "当前版本未内置X5内核", Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(mContext, "X5内核安装失败", Toast.LENGTH_LONG).show();
+            }
+        } else if (webViewType == 3) {
+            GeckoSupport.init(mContext, null);
+            Toast.makeText(mContext, "已启用 Gecko 内核(" + GeckoSupport.getVersionName() + ")", Toast.LENGTH_SHORT).show();
+        }
     }
 
     String getLocaleView(int type) {

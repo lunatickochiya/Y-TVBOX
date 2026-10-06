@@ -76,6 +76,7 @@ public class HawkConfig {
     public static final String LIVE_PLAYER_TYPE = "live_player_type"; // 0 系统 1 ijk 2 exo
     public static final String FCC_ENABLE = "live_fcc_enable"; // 原生 FCC 快速换台
     public static final String LIVE_BRIGHTNESS = "live_brightness"; // 直播界面亮度(0.01~1, 未设置为 -1)
+    public static final String LIVE_HIDDEN = "live_hidden_channels"; // 隐藏的直播分组/频道(g|组名 / c|组名|频道名)
 
     public static boolean isDebug() {
         return Hawk.get(DEBUG_OPEN, false);
