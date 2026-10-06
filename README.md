@@ -29,13 +29,15 @@ URL 示例、网络前提（组播转发 / FCC 单播 NAT）与日志排查见
 ## X5 内核（可选版本）
 
 文件名带 `x5` 的 APK 内置腾讯 TBS/X5 SDK 与官方 X5 内核（按 ABI 打包，arm64 约 +53MB /
-armeabi 约 +45MB），用于替代老旧系统 WebView 做嗅探/解析：设置里把「嗅探Webview」
-切换为「X5内核」，首次选择会把内置内核安装到应用私有目录，**重启应用后生效**；
-之后设置页会显示内核版本号。整个过程不联网下载内核。
+armeabi 约 +79MB，含 4.4 老内核），用于替代老旧系统 WebView 做嗅探/解析：设置里把
+「嗅探Webview」切换为「X5内核」，首次选择会把内置内核安装到应用私有目录，
+**重启应用后生效**；之后设置页会显示内核版本号。整个过程不联网下载内核。
 
-> X5 内核 native 引擎（`libmttwebview.so`）按 API 23 构建、并依赖 API 21+ 符号，
-> 最低需要 **Android 5.0**（腾讯官方支持 Android 5-13）；Android 4.4 设备请安装
-> 普通版或 `gecko` 版。
+> **Android 4.4 支持**：armeabi 版内置两个内核并按系统版本自动选择——Android 4.4
+> 用 2020 年的老内核 `tbs_core_045318`（Chrome 77，`libmttwebview.so` minAPI=16，
+> dex 035 兼容 Dalvik），Android 5.0+ 用现代内核 `tbs_core_046514`。arm64 版只有现代
+> 内核（`libmttwebview.so` 按 API 23 构建、依赖 API 21+ 符号），实际要求 Android 5.0+。
+> 4.4 设备请安装 armeabi 的 `x5` 版（或普通版 / `gecko` 版）。
 
 ## Gecko 内核（可选版本）
 

@@ -93,10 +93,11 @@ android {
         }
         x5 {
             // X5 内核版: 在 Java 版基础上打包腾讯 TBS/X5 SDK, 提供 X5 WebView 嗅探内核
-            // X5 内核 native 引擎(libmttwebview.so)按 API 23 构建, 且依赖 API 21+ 符号,
-            // Android 4.4 无法加载, 故 x5 变体保持 minSdk 21(腾讯官方支持 Android 5.0-13)
+            // armeabi 版同时内置老内核 045318(Chrome 77, libmttwebview.so minAPI=16)与现代内核
+            // 046514, 安装时按系统版本自动选择, 故 x5 变体 minSdk 19 支持 Android 4.4;
+            // arm64 版只有现代内核(minAPI=23), 实际仍要求 Android 5.0+
             dimension = "mode"
-            minSdkVersion 21
+            minSdkVersion 19
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         gecko {

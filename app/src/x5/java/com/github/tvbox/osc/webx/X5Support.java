@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.webx;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.Log;
 import android.view.View;
 
@@ -30,12 +31,21 @@ import java.util.Map;
  * 内核为内置方案: APK 里打包了对应 ABI 的官方内核文件(assets/tbs/tbs_core_*.tbs),
  * 安装时复制到应用私有目录并调用 {@link QbSdk#installLocalTbsCore} 本地安装,
  * 不从网络下载; 安装完成后需重启应用生效.
+ *
+ * 4.4 分支的 armeabi 版本同时内置两个内核, 按系统版本自动选择:
+ * Android 4.4(API 19) 用老内核 045318, Android 5.0+ 用现代内核 046514.
  */
 public final class X5Support {
 
     private static final String TAG = "YTVBoxX5";
     /** 内置内核目录(assets/tbs/tbs_core_<版本>_...tbs) */
     private static final String CORE_ASSET_DIR = "tbs";
+    /**
+     * 老内核分界线: 版本号 < 46000 的是 2020 年前后的老内核(如 045318, Chrome 77,
+     * libmttwebview.so minAPI=16), 只有它能在 Android 4.4 上加载;
+     * 046xxx 现代内核(libmttwebview.so minAPI=23)要求 Android 5.0+/6.0+.
+     */
+    private static final int LEGACY_CORE_MAX = 46000;
     /** 每个进程只尝试安装一次内置内核 */
     private static boolean sLocalCoreTried = false;
     private static boolean sLocalCoreInstalled = false;
@@ -122,6 +132,7 @@ public final class X5Support {
     /**
      * 安装内置的 X5 内核(assets/tbs/tbs_core_<版本>_...tbs):
      * 复制到私有目录后调用 QbSdk.installLocalTbsCore, 重启应用生效.
+     * 同一 ABI 目录里有多个内核时按系统版本选择(见 {@link #LEGACY_CORE_MAX}).
      *
      * @return 本次是否触发了安装
      */
@@ -132,16 +143,31 @@ public final class X5Support {
             if (getVersion(app) > 0) return false;
             String[] files = app.getAssets().list(CORE_ASSET_DIR);
             if (files == null || files.length == 0) return false;
+            // Android 4.4 只能加载老内核, 5.0+ 用现代内核
+            boolean needLegacy = Build.VERSION.SDK_INT < 21;
             String coreName = null;
+            int version = 0;
             for (String f : files) {
-                if (f.endsWith(".tbs")) {
+                if (!f.endsWith(".tbs")) continue;
+                int v = parseCoreVersion(f);
+                if (v <= 0) continue;
+                if ((v < LEGACY_CORE_MAX) == needLegacy && v > version) {
                     coreName = f;
-                    break;
+                    version = v;
                 }
             }
-            if (coreName == null) return false;
-            int version = parseCoreVersion(coreName);
-            if (version <= 0) return false;
+            if (coreName == null) {
+                // 没有与系统版本匹配的内核时, 退回任意一个可用内核
+                for (String f : files) {
+                    if (!f.endsWith(".tbs")) continue;
+                    int v = parseCoreVersion(f);
+                    if (v > version) {
+                        coreName = f;
+                        version = v;
+                    }
+                }
+            }
+            if (coreName == null || version <= 0) return false;
             File dir = new File(app.getFilesDir(), CORE_ASSET_DIR);
             if (!dir.exists() && !dir.mkdirs()) return false;
             // TBS 本地安装要求内核文件名 x5.tbs
