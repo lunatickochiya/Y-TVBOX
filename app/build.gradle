@@ -91,6 +91,12 @@ android {
             // Python 版本需要额外的 Proguard 规则
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-python.pro'
         }
+        x5 {
+            // X5 内核版: 在 Java 版基础上打包腾讯 TBS/X5 SDK, 提供 X5 WebView 嗅探内核
+            dimension = "mode"
+            minSdkVersion 21
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
@@ -99,6 +105,13 @@ android {
             def fileName = "Y-TVBOX_4.4_${variant.buildType.name}-${flavorNames}.apk"
             outputFileName = fileName
         }
+    }
+
+    sourceSets {
+        // 非 x5 版本使用 app/src/std 下的 X5 空实现(普通版本不打包 TBS SDK),
+        // x5 版本使用 app/src/x5 下的 TBS 实现
+        normal.java.srcDir 'src/std/java'
+        python.java.srcDir 'src/std/java'
     }
 
     compileOptions {
@@ -147,6 +160,8 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation project(path: ':quickjs')
     pythonImplementation project(":pyramid")
+    // X5 内核版: 腾讯 TBS/X5 SDK
+    x5Implementation 'com.tencent.tbs:tbssdk:44286'
     
     kapt 'androidx.room:room-compiler:2.6.1'
     implementation 'com.github.alidili:FlowLayout:v1.5'

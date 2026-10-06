@@ -80,13 +80,15 @@ jobs:
           ./gradlew \
             :app:assembleArmeabiGenericNormalRelease \
             :app:assembleArm64GenericNormalRelease \
+            :app:assembleArmeabiGenericX5Release \
+            :app:assembleArm64GenericX5Release \
             --no-daemon --stacktrace
 
       - name: Collect and verify APKs
         run: |
           mkdir -p release
           find app/build/outputs/apk -type f -name 'Y-TVBOX_*.apk' -exec cp '{}' release/ \;
-          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 2
+          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 4
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           for apk in release/*.apk; do

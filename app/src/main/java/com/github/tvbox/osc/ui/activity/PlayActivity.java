@@ -96,6 +96,8 @@ import com.github.tvbox.osc.util.XWalkUtils;
 import com.github.tvbox.osc.util.thunder.Jianpian;
 import com.github.tvbox.osc.util.thunder.Thunder;
 import com.github.tvbox.osc.viewmodel.SourceViewModel;
+import com.github.tvbox.osc.webx.X5Support;
+import com.github.tvbox.osc.webx.X5WebViewHolder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -1835,14 +1837,25 @@ public class PlayActivity extends BaseActivity {
     private XWalkWebClient mX5WebClient;
     private WebView mSysWebView;
     private SysWebClient mSysWebClient;
+    private X5WebViewHolder mX5WebView;
     private final Map<String, Boolean> loadedUrls = new HashMap<>();
     private LinkedList<String> loadFoundVideoUrls = new LinkedList<>();
     private HashMap<String, HashMap<String, String>> loadFoundVideoUrlsHeader = new HashMap<>();
     private final AtomicInteger loadFoundCount = new AtomicInteger(0);
 
     void loadWebView(String url) {
-        if (mSysWebView == null && mXwalkWebView == null) {
-            boolean useSystemWebView = Hawk.get(HawkConfig.PARSE_WEBVIEW, true);
+        if (mSysWebView == null && mXwalkWebView == null && mX5WebView == null) {
+            int webViewType = Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0);
+            if (webViewType == 2 && X5Support.isSupported()) {
+                if (initWebViewX5()) {
+                    loadUrl(url);
+                } else {
+                    initWebView(true);
+                    loadUrl(url);
+                }
+                return;
+            }
+            boolean useSystemWebView = webViewType != 1;
             if (!useSystemWebView) {
                 XWalkUtils.tryUseXWalk(mContext, new XWalkUtils.XWalkState() {
                     @Override
@@ -1872,6 +1885,58 @@ public class PlayActivity extends BaseActivity {
         } else {
             loadUrl(url);
         }
+    }
+
+    /**
+     * X5 内核嗅探: 内核就绪则创建 X5 WebView, 否则回退系统 WebView.
+     *
+     * @return 是否成功创建 X5 WebView
+     */
+    private boolean initWebViewX5() {
+        X5Support.init(mContext, null);
+        if (!X5Support.canLoadX5(mContext)) {
+            Toast.makeText(mContext, "X5内核未就绪(正在后台下载)，已替换为系统自带WebView", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        mX5WebView = X5Support.createWebView(mContext, mX5Host);
+        if (mX5WebView == null) {
+            Toast.makeText(mContext, "X5内核初始化失败，已替换为系统自带WebView", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        configWebViewX5View(mX5WebView);
+        return true;
+    }
+
+    private final X5WebViewHolder.Host mX5Host = new X5WebViewHolder.Host() {
+        @Override
+        public int onInterceptRequest(String url, Map<String, String> headers) {
+            return decideIntercept(url, headers == null ? new HashMap<String, String>() : new HashMap<>(headers));
+        }
+
+        @Override
+        public void onPageFinished(String url) {
+            LOG.i("echo-onPageFinished url:" + url);
+            if (!url.equals("about:blank")) {
+                mController.evaluateScript(sourceBean, url, null, null, mX5WebView);
+            }
+            mHandler.sendEmptyMessage(200);
+        }
+    };
+
+    private void configWebViewX5View(X5WebViewHolder webView) {
+        if (webView == null) {
+            return;
+        }
+        ViewGroup.LayoutParams layoutParams = Hawk.get(HawkConfig.DEBUG_OPEN, false)
+                ? new ViewGroup.LayoutParams(800, 400) :
+                new ViewGroup.LayoutParams(1, 1);
+        View view = webView.getView();
+        view.setFocusable(false);
+        view.setFocusableInTouchMode(false);
+        view.clearFocus();
+        view.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
+        addContentView(view, layoutParams);
+        webView.setBlockNetworkImage(!Hawk.get(HawkConfig.DEBUG_OPEN, false));
     }
 
     void initWebView(boolean useSystemWebView) {
@@ -1912,6 +1977,12 @@ public class PlayActivity extends BaseActivity {
                         mSysWebView.loadUrl(url);
                     }
                 }
+                if (mX5WebView != null) {
+                    if (webUserAgent != null) {
+                        mX5WebView.setUserAgentString(webUserAgent);
+                    }
+                    mX5WebView.loadUrl(url, webHeaderMap);
+                }
             }
         });
     }
@@ -1939,6 +2010,13 @@ public class PlayActivity extends BaseActivity {
                         mSysWebView.removeAllViews();
                         mSysWebView.destroy();
                         mSysWebView = null;
+                    }
+                }
+                if (mX5WebView != null) {
+                    mX5WebView.stopLoading();
+                    if (destroy) {
+                        mX5WebView.destroy();
+                        mX5WebView = null;
                     }
                 }
             }
@@ -2069,6 +2147,54 @@ public class PlayActivity extends BaseActivity {
         webView.setBackgroundColor(Color.BLACK);
     }
 
+    /**
+     * 嗅探拦截决策(系统 WebView / X5 共用).
+     *
+     * @return 0=放行, 1=拦截(空响应), 2=favicon 空响应
+     */
+    int decideIntercept(String url, HashMap<String, String> headers) {
+        if (url.endsWith("/favicon.ico")) {
+            if (url.startsWith("http://127.0.0.1")) {
+                return 2;
+            }
+            return 0;
+        }
+
+        boolean isFilter = VideoParseRuler.isFilter(webUrl, url);
+        if (isFilter) {
+            LOG.i("shouldInterceptLoadRequest filter:" + url);
+            return 0;
+        }
+
+        boolean ad;
+        if (!loadedUrls.containsKey(url)) {
+            ad = AdBlocker.isAd(url);
+            loadedUrls.put(url, ad);
+        } else {
+            ad = loadedUrls.get(url);
+        }
+
+        if (!ad) {
+            if (yxdm(url, headers)) return 0;
+            if (checkVideoFormat(url)) {
+                loadFoundVideoUrls.add(url);
+                loadFoundVideoUrlsHeader.put(url, headers);
+                LOG.i("loadFoundVideoUrl:" + url);
+                if (loadFoundCount.incrementAndGet() == 1) {
+                    url = loadFoundVideoUrls.poll();
+                    mHandler.removeMessages(100);
+                    String cookie = CookieManager.getInstance().getCookie(url);
+                    if (!TextUtils.isEmpty(cookie))
+                        headers.put("Cookie", " " + cookie);//携带cookie
+                    playUrl(url, headers);
+                    SuperParse.stopJsonJx();
+                    stopLoadWebView(false);
+                }
+            }
+        }
+        return ad || loadFoundCount.get() > 0 ? 1 : 0;
+    }
+
     private class SysWebClient extends WebViewClient {
 
         @Override
@@ -2102,49 +2228,14 @@ public class PlayActivity extends BaseActivity {
         }
 
         WebResourceResponse checkIsVideo(String url, HashMap<String, String> headers) {
-            if (url.endsWith("/favicon.ico")) {
-                if (url.startsWith("http://127.0.0.1")) {
-                    return new WebResourceResponse("image/x-icon", "UTF-8", null);
-                }
-                return null;
+            int decision = decideIntercept(url, headers);
+            if (decision == 2) {
+                return new WebResourceResponse("image/x-icon", "UTF-8", null);
             }
-
-            boolean isFilter = VideoParseRuler.isFilter(webUrl, url);
-            if (isFilter) {
-                LOG.i("shouldInterceptLoadRequest filter:" + url);
-                return null;
+            if (decision == 1) {
+                return AdBlocker.createEmptyResource();
             }
-
-            boolean ad;
-            if (!loadedUrls.containsKey(url)) {
-                ad = AdBlocker.isAd(url);
-                loadedUrls.put(url, ad);
-            } else {
-                ad = loadedUrls.get(url);
-            }
-
-            if (!ad) {
-                if (yxdm(url, headers)) return null;
-                if (checkVideoFormat(url)) {
-                    loadFoundVideoUrls.add(url);
-                    loadFoundVideoUrlsHeader.put(url, headers);
-                    LOG.i("loadFoundVideoUrl:" + url);
-                    if (loadFoundCount.incrementAndGet() == 1) {
-                        url = loadFoundVideoUrls.poll();
-                        mHandler.removeMessages(100);
-                        String cookie = CookieManager.getInstance().getCookie(url);
-                        if (!TextUtils.isEmpty(cookie))
-                            headers.put("Cookie", " " + cookie);//携带cookie
-                        playUrl(url, headers);
-                        SuperParse.stopJsonJx();
-                        stopLoadWebView(false);
-                    }
-                }
-            }
-
-            return ad || loadFoundCount.get() > 0 ?
-                    AdBlocker.createEmptyResource() :
-                    null;
+            return null;
         }
 
         @Nullable

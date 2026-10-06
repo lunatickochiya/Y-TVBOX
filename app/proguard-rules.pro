@@ -321,3 +321,9 @@
 -keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.Element <fields>; }
 -keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.Attribute <fields>; }
 -keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.ElementList <fields>; }
+
+# X5 (TBS) SDK
+-keep class com.tencent.smtt.** { *; }
+-keep class com.tencent.tbs.** { *; }
+-dontwarn com.tencent.smtt.**
+-dontwarn com.tencent.tbs.**
