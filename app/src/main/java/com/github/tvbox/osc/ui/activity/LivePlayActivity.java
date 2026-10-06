@@ -13,6 +13,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -49,6 +50,7 @@ import com.github.tvbox.osc.ui.adapter.LiveEpgDateAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingGroupAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingItemAdapter;
 import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
+import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
 import com.github.tvbox.osc.ui.dialog.LivePasswordDialog;
 import com.github.tvbox.osc.util.EpgUtil;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
@@ -252,6 +254,12 @@ public class LivePlayActivity extends BaseActivity {
 
         // takagen99 : Hide only when video playing
         hideSystemUI(false);
+
+        // 恢复上次设置的直播界面亮度
+        float savedBrightness = Hawk.get(HawkConfig.LIVE_BRIGHTNESS, -1f);
+        if (savedBrightness > 0f) {
+            applyLiveBrightness(savedBrightness);
+        }
 
         // Getting EPG Address
         epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
@@ -1063,6 +1071,30 @@ public class LivePlayActivity extends BaseActivity {
         playChannel(currentChannelGroupIndex, currentLiveChannelIndex, true);
     }
 
+    /** 直播设置-亮度: 打开亮度调节对话框 */
+    private void showLiveBrightnessDialog() {
+        float current = Hawk.get(HawkConfig.LIVE_BRIGHTNESS, -1f);
+        if (current <= 0f) {
+            float windowBrightness = getWindow().getAttributes().screenBrightness;
+            current = windowBrightness > 0f ? windowBrightness : 0.5f;
+        }
+        LiveBrightnessDialog dialog = new LiveBrightnessDialog(this, current, new LiveBrightnessDialog.OnBrightnessChangeListener() {
+            @Override
+            public void onBrightnessChanged(float brightness) {
+                applyLiveBrightness(brightness);
+                Hawk.put(HawkConfig.LIVE_BRIGHTNESS, brightness);
+            }
+        });
+        dialog.show();
+    }
+
+    /** 应用直播界面亮度(只影响本 Activity 窗口) */
+    private void applyLiveBrightness(float brightness) {
+        WindowManager.LayoutParams attributes = getWindow().getAttributes();
+        attributes.screenBrightness = brightness;
+        getWindow().setAttributes(attributes);
+    }
+
     //显示设置列表
     private void showSettingGroup() {
         mBack.setVisibility(View.INVISIBLE);
@@ -1222,6 +1254,20 @@ public class LivePlayActivity extends BaseActivity {
                     playNextSource();
                 else
                     playPreSource();
+            }
+
+            @Override
+            public void changeChannel(int direction) {
+                // 触屏左半屏上下滑动切台: 1=下一个频道, -1=上一个频道 (遵循"换台反转"设置)
+                if (!isCurrentLiveChannelValid()) return;
+                boolean reverse = Hawk.get(HawkConfig.LIVE_CHANNEL_REVERSE, false);
+                if (direction > 0) {
+                    if (reverse) playPrevious();
+                    else playNext();
+                } else {
+                    if (reverse) playNext();
+                    else playPrevious();
+                }
             }
         });
         controller.setCanChangePosition(false);
@@ -1760,6 +1806,9 @@ public class LivePlayActivity extends BaseActivity {
                         }
                         if (isCurrentLiveChannelValid()) replayChannel();
                         break;
+                    case 6://亮度
+                        showLiveBrightnessDialog();
+                        return;
 //                    case 5:
 //                        // takagen99 : Added Live History list selection - 直播列表
 //                        ArrayList<String> liveHistory = Hawk.get(HawkConfig.LIVE_HISTORY, new ArrayList<String>());
@@ -1981,7 +2030,7 @@ public class LivePlayActivity extends BaseActivity {
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
-        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台"));
+        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
         itemsArrayList.add(sourceItems);
