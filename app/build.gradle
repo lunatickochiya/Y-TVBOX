@@ -192,11 +192,16 @@ dependencies {
     x5Implementation 'com.tencent.tbs:tbssdk:44286'
     // Gecko 内核版: Mozilla GeckoView(144 是最后支持 Android 5.0+ 的版本)
     geckoImplementation('org.mozilla.geckoview:geckoview-omni:144.0.20251027123126') {
-        // Lifecycle 2.9.3 requires newer Gradle variant matching than this project uses.
+        // GeckoView's latest AndroidX dependencies require newer Android build tools.
+        exclude group: 'androidx.annotation', module: 'annotation-experimental'
+        exclude group: 'androidx.core', module: 'core'
         exclude group: 'androidx.lifecycle', module: 'lifecycle-common'
         exclude group: 'androidx.lifecycle', module: 'lifecycle-process'
     }
-    // Keep Gecko builds compatible with Gradle 7.5 and the API 21 baseline.
+    // Keep Gecko builds compatible with compileSdk 34, AGP 7.4.2 and the API 21 baseline.
+    geckoImplementation 'androidx.annotation:annotation-experimental:1.4.1'
+    geckoImplementation 'androidx.core:core:1.13.1'
+    geckoImplementation 'androidx.core:core-ktx:1.13.1'
     geckoImplementation 'androidx.lifecycle:lifecycle-common:2.8.7'
     geckoImplementation 'androidx.lifecycle:lifecycle-process:2.8.7'
     
