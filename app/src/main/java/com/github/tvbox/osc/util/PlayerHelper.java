@@ -50,14 +50,8 @@ public class PlayerHelper {
             e.printStackTrace();
         }
         if (forcePlayerType >= 0) playerType = forcePlayerType;
-<<<<<<< HEAD
-=======
-        if (LegacyPlaybackProfile.isLegacyAndroid(Build.VERSION.SDK_INT)) {
-            renderType = LegacyPlaybackProfile.defaultRenderType(Build.VERSION.SDK_INT);
-        }
         android.util.Log.i("YLive", "updateCfg pl=" + playerType + " ijk=" + ijkCode + " exo=" + exoDecode
                 + " render=" + renderType + " scale=" + scale);
->>>>>>> 4a609a9 (fix(live): 切台解码器不再跳回系统/无声, Exo 音频固定系统解码优先)
         IJKCode codec = ApiConfig.get().getIJKCodec(ijkCode);
         PlayerFactory playerFactory;
         if (playerType == 1) {
