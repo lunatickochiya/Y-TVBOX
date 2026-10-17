@@ -32,12 +32,17 @@ public class PlayerHelper {
         int renderType = Hawk.get(HawkConfig.PLAY_RENDER, 0);
         String ijkCode = Hawk.get(HawkConfig.IJK_CODEC, "软解码");
         int scale = Hawk.get(HawkConfig.PLAY_SCALE, 0);
+        // Exo 解码方式: 直播播放配置里带 exo 项时生效(-1=未指定, 用设置里的 Exo 渲染器)
+        int exoDecode = -1;
         try {
             playerType = playerCfg.getInt("pl");
             //就我遇到的问题是 Exo 在 TextureView 黑屏 调整设置中的渲染模式无法生效
             //renderType = playerCfg.getInt("pr");//该值无法修改，一旦确认该值后续无法进行修改 就是在设置选的 类型无法应用
             ijkCode = playerCfg.getString("ijk");
             scale = playerCfg.getInt("sc");
+            if (playerCfg.has("exo")) {
+                exoDecode = EXOmPlayer.decodeModeOf(playerCfg.getString("exo"));
+            }
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -52,10 +57,12 @@ public class PlayerHelper {
                 }
             };
         } else if (playerType == 2) {
+            final int finalExoDecode = exoDecode;
             playerFactory = new PlayerFactory<EXOmPlayer>() {
                 @Override
                 public EXOmPlayer createPlayer(Context context) {
-                    return new EXOmPlayer(context);
+                    // 指定了解码方式(直播): 硬解 MediaCodec 优先 / 软解 FFmpeg 优先
+                    return finalExoDecode < 0 ? new EXOmPlayer(context) : new EXOmPlayer(context, finalExoDecode);
                 }
             };
         } else if (playerType == 3) {

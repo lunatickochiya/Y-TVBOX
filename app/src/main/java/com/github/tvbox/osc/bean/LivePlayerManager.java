@@ -1,9 +1,8 @@
 package com.github.tvbox.osc.bean;
 
 import androidx.annotation.NonNull;
-import androidx.exifinterface.media.ExifInterface;
 
-import com.github.tvbox.osc.api.ApiConfig;
+import com.github.tvbox.osc.player.EXOmPlayer;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.PlayerHelper;
 import com.orhanobut.hawk.Hawk;
@@ -11,7 +10,6 @@ import com.orhanobut.hawk.Hawk;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.HashMap;
 import java.util.Objects;
 
 import xyz.doikki.videoplayer.player.VideoView;
@@ -26,6 +24,9 @@ public class LivePlayerManager {
             if (playerType == -1) playerType = Hawk.get(HawkConfig.PLAY_TYPE, 0);
             defaultPlayerConfig.put("pl", playerType);
             defaultPlayerConfig.put("ijk", Hawk.get(HawkConfig.IJK_CODEC, "软解码"));
+            // Exo 解码: 0=硬解, 1=软解
+            defaultPlayerConfig.put("exo", EXOmPlayer.decodeNameOf(
+                    Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_SOFT)));
             defaultPlayerConfig.put("pr", Hawk.get(HawkConfig.PLAY_RENDER, 0));
             defaultPlayerConfig.put("sc", Hawk.get(HawkConfig.PLAY_SCALE, 0));
         } catch (JSONException e) {
@@ -56,7 +57,8 @@ public class LivePlayerManager {
         try {
             if (playerConfig.getInt("pl") == currentPlayerConfig.getInt("pl")
                     && playerConfig.getInt("pr") == currentPlayerConfig.getInt("pr")
-                    && playerConfig.getString("ijk").equals(currentPlayerConfig.getString("ijk"))) {
+                    && playerConfig.getString("ijk").equals(currentPlayerConfig.getString("ijk"))
+                    && Objects.equals(playerConfig.optString("exo"), currentPlayerConfig.optString("exo"))) {
                 videoView.setScreenScaleType(playerConfig.getInt("sc"));
             } else {
                 PlayerHelper.updateCfg(videoView, playerConfig);
@@ -68,11 +70,16 @@ public class LivePlayerManager {
         currentPlayerConfig = playerConfig;
     }
 
+    /**
+     * 当前直播解码选项在「播放解码」菜单里的位置:
+     * 0=系统, 1=ijk硬解, 2=ijk软解, 3=exo软解, 4=exo硬解
+     */
     public int getLivePlayerType() {
         int playerTypeIndex = 0;
         try {
             int playerType = currentPlayerConfig.getInt("pl");
             String ijkCodec = currentPlayerConfig.getString("ijk");
+            String exoDecode = currentPlayerConfig.optString("exo", EXOmPlayer.DECODE_HARD_NAME);
             switch (playerType) {
                 case 0:
                     playerTypeIndex = 0;
@@ -84,7 +91,7 @@ public class LivePlayerManager {
                         playerTypeIndex = 2;
                     break;
                 case 2:
-                    playerTypeIndex = 3;
+                    playerTypeIndex = EXOmPlayer.decodeModeOf(exoDecode) == EXOmPlayer.DECODER_SOFT ? 3 : 4;
                     break;
             }
         } catch (JSONException e) {
@@ -120,7 +127,11 @@ public class LivePlayerManager {
                     break;
                 case 3:
                     playerConfig.put("pl", 2);
-                    playerConfig.put("ijk", "软解码");
+                    playerConfig.put("exo", EXOmPlayer.DECODE_SOFT_NAME);
+                    break;
+                case 4:
+                    playerConfig.put("pl", 2);
+                    playerConfig.put("exo", EXOmPlayer.DECODE_HARD_NAME);
                     break;
             }
         } catch (JSONException e) {
