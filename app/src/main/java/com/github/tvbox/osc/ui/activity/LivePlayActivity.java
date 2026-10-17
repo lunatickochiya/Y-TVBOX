@@ -51,6 +51,7 @@ import com.github.tvbox.osc.ui.adapter.LiveEpgDateAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingGroupAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingItemAdapter;
 import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
+import com.github.tvbox.osc.ui.dialog.LiveBackupDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
 import com.github.tvbox.osc.ui.dialog.LiveChannelVisibilityDialog;
 import com.github.tvbox.osc.ui.dialog.LiveGroupToggleDialog;
@@ -1186,6 +1187,12 @@ public class LivePlayActivity extends BaseActivity {
         dialog.show();
     }
 
+    /** 直播设置-备份/恢复设置 */
+    private void showLiveBackupDialog() {
+        LiveBackupDialog dialog = new LiveBackupDialog(this);
+        dialog.show();
+    }
+
     /** 直播设置-分组开关(一键开关整个分组, 如关闭 4K 分组) */
     private void showGroupToggleDialog() {
         List<LiveChannelGroup> all = ApiConfig.get().getChannelGroupList();
@@ -1981,7 +1988,7 @@ public class LivePlayActivity extends BaseActivity {
                 }
                 liveSettingItemAdapter.selectItem(position, select, false);
                 break;
-            case 5:// 直播配置: 扫码配置 / 直播地址 / EPG地址 / 频道显示 / 分组开关
+            case 5:// 直播配置: 扫码配置 / 直播地址 / EPG地址 / 频道显示 / 分组开关 / 备份设置
                 switch (position) {
                     case 0:
                         showQrConfigDialog();
@@ -1997,6 +2004,9 @@ public class LivePlayActivity extends BaseActivity {
                         break;
                     case 4:
                         showGroupToggleDialog();
+                        break;
+                    case 5:
+                        showLiveBackupDialog();
                         break;
                 }
                 break;
@@ -2215,7 +2225,7 @@ public class LivePlayActivity extends BaseActivity {
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo软解", "exo硬解"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
         ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度", "开机自启"));
-        ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "分组开关"));
+        ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "分组开关", "备份设置"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
         itemsArrayList.add(sourceItems);

@@ -42,6 +42,18 @@ Exo 直播缓冲区也限制在 2s~20s / 24MB 以内并关闭回看缓冲。
 - 「直播配置 → 频道显示」：精确到单个频道的显示/隐藏；
 - 分组开关只写分组级隐藏项，不影响「频道显示」里单独隐藏的频道。
 
+## 备份 / 恢复设置
+
+「直播配置 → 备份设置」可以一键备份全部设置（直播源、EPG 源、历史记录、分组开关、
+播放解码、每个频道的记忆等），恢复后自动重启应用生效。
+
+- 备份目录：`/sdcard/ylive_backup/`，文件名 `ylive-backup-yyyyMMdd-HHmmss.json`
+  （与 Y-TVBOX 的 `/sdcard/tvbox_backup/` **目录和文件名都不重名**，可以放在一起互不影响）；
+- 没有存储权限时会自动退到应用私有目录 `Android/data/com.github.ylive.osc/files/ylive_backup/`，
+  对话框里会显示实际路径，点「存储权限」可申请；
+- 默认保留最近 10 个备份；文件格式与 Y-TVBOX 的 hawk 备份一致，把 Y-TVBOX 备份里的
+  `hawk` 文件复制过来改名成 `*.json` 放进目录也能恢复。
+
 ## GitHub Release
 
 发布工作流只构建 `armeabi-v7a` 与 `arm64-v8a` 两个签名 APK（文件名 `Y-LIVE_...`）。
