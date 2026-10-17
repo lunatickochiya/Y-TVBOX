@@ -7,6 +7,8 @@ import android.os.Looper;
 import androidx.core.os.HandlerCompat;
 import androidx.multidex.MultiDexApplication;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.MemoryCategory;
 import com.github.catvod.crawler.JarLoader;
 import com.github.catvod.crawler.JsLoader;
 import com.github.tvbox.osc.R;
@@ -90,6 +92,9 @@ public class App extends MultiDexApplication {
         }
         // y-live: 不再预热 IJK 原生库(PlayerHelper.init 里的 loadLibrariesOnce),
         // 只有选 ijk 硬解/软解时才加载, 启动更快、Exo/系统播放时不占原生内存
+
+        // y-live: 直播界面只加载频道台标等小图, 把 Glide 图片内存缓存/位图池调低一档, 降低常驻内存
+        Glide.get(this).setMemoryCategory(MemoryCategory.LOW);
 
         // Delete Cache
         /*File dir = getCacheDir();
