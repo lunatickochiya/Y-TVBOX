@@ -6,6 +6,8 @@ import android.util.Log;
 
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.Renderer;
+import androidx.media3.exoplayer.audio.AudioRendererEventListener;
+import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.video.VideoRendererEventListener;
 
@@ -41,6 +43,17 @@ public class LiveExoRenderersFactory extends DefaultRenderersFactory {
 
     public LiveExoRenderersFactory(Context context) {
         super(context);
+    }
+
+    @Override
+    protected void buildAudioRenderers(Context context, int extensionRendererMode,
+                                       MediaCodecSelector mediaCodecSelector, boolean enableDecoderFallback,
+                                       AudioSink audioSink, Handler eventHandler,
+                                       AudioRendererEventListener eventListener, ArrayList<Renderer> out) {
+        // 音频固定「系统解码(MediaCodec)优先 + FFmpeg 音频软解兜底」:
+        // 音频软解对画质没帮助, 反而在部分机型/流上会出现"有画面没声音", 所以音频不受软解模式影响
+        super.buildAudioRenderers(context, EXTENSION_RENDERER_MODE_ON, mediaCodecSelector, enableDecoderFallback,
+                audioSink, eventHandler, eventListener, out);
     }
 
     @Override

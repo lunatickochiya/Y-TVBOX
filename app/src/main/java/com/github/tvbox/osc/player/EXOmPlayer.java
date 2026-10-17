@@ -71,6 +71,8 @@ public class EXOmPlayer extends ExoMediaPlayer {
                 ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
                 : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
         setLoadControl(createLiveLoadControl());
+        android.util.Log.i("YLive", "EXOmPlayer 解码方式=" + decodeNameOf(decoderMode)
+                + " 视频软解优先级=" + (decoderMode == DECODER_SOFT ? "优先" : "兜底") + " 音频=系统优先");
     }
 
     public int getDecoderMode() {
