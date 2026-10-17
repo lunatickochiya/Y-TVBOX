@@ -22,6 +22,12 @@ public class LivePlayerManager {
         try {
             int playerType = Hawk.get(HawkConfig.LIVE_PLAYER_TYPE, -1);
             if (playerType == -1) playerType = Hawk.get(HawkConfig.PLAY_TYPE, 0);
+            // 直播只支持 3 种播放器: 0=系统, 1=IJK, 2=Exo; 其它值(点播的阿里/MX 等)统一按 Exo 处理,
+            // 否则「播放解码」会显示成"系统"、而且切台后会换成不支持直播的播放器(无声)
+            if (playerType < 0 || playerType > 2) {
+                playerType = 2;
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, playerType);
+            }
             defaultPlayerConfig.put("pl", playerType);
             defaultPlayerConfig.put("ijk", Hawk.get(HawkConfig.IJK_CODEC, "软解码"));
             // Exo 解码: 0=硬解, 1=软解; 没设置过时默认硬解(保持原来的硬解优先行为, 纯直播版在 App 里默认软解)
@@ -29,6 +35,7 @@ public class LivePlayerManager {
                     Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD)));
             defaultPlayerConfig.put("pr", Hawk.get(HawkConfig.PLAY_RENDER, 0));
             defaultPlayerConfig.put("sc", Hawk.get(HawkConfig.PLAY_SCALE, 0));
+            android.util.Log.i("YLive", "LivePlayerManager 默认配置 " + defaultPlayerConfig);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -79,7 +86,9 @@ public class LivePlayerManager {
         try {
             int playerType = currentPlayerConfig.getInt("pl");
             String ijkCodec = currentPlayerConfig.getString("ijk");
-            String exoDecode = currentPlayerConfig.optString("exo", EXOmPlayer.DECODE_HARD_NAME);
+            String exoDecode = currentPlayerConfig.has("exo")
+                    ? currentPlayerConfig.getString("exo")
+                    : EXOmPlayer.decodeNameOf(Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD));
             switch (playerType) {
                 case 0:
                     playerTypeIndex = 0;

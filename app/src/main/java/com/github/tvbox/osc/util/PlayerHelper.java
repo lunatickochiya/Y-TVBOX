@@ -43,6 +43,9 @@ public class PlayerHelper {
             scale = playerCfg.getInt("sc");
             if (playerCfg.has("exo")) {
                 exoDecode = EXOmPlayer.decodeModeOf(playerCfg.getString("exo"));
+            } else if (playerCfg.has("pl") && playerCfg.getInt("pl") == 2) {
+                // 老配置没有 exo 项: 按设置里的默认解码, 保证和「播放解码」菜单显示一致
+                exoDecode = Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD);
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -51,6 +54,8 @@ public class PlayerHelper {
         if (LegacyPlaybackProfile.isLegacyAndroid(Build.VERSION.SDK_INT)) {
             renderType = LegacyPlaybackProfile.defaultRenderType(Build.VERSION.SDK_INT);
         }
+        android.util.Log.i("YLive", "updateCfg pl=" + playerType + " ijk=" + ijkCode + " exo=" + exoDecode
+                + " render=" + renderType + " scale=" + scale);
         IJKCode codec = ApiConfig.get().getIJKCodec(ijkCode);
         PlayerFactory playerFactory;
         if (playerType == 1) {
