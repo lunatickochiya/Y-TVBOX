@@ -2132,7 +2132,8 @@ public class LivePlayActivity extends BaseActivity {
             public void onError(Response<String> response) {
                 super.onError(response);
                 Toast.makeText(App.getInstance(), getString(R.string.act_live_play_network_error), Toast.LENGTH_LONG).show();
-                finish();
+                // y-live: 直播列表加载失败时不退出应用, 直接弹出配置框让用户改地址(纯直播版没有别的界面可去)
+                showQrConfigDialog();
             }
         });
     }
