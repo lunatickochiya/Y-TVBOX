@@ -51,7 +51,8 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     private LoadControl mLoadControl;
     private DefaultRenderersFactory mRenderersFactory;
     private DefaultTrackSelector mTrackSelector;
-
+    /** 指定扩展渲染器模式(FFmpeg 软解), -1=用设置里的全局值 */
+    private int mExtensionRendererMode = -1;
     private int errorCode = -100;
     private String path;
     private Map<String, String> headers;
@@ -65,6 +66,32 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
         mMediaSourceHelper = ExoMediaSourceHelper.getInstance(context);
     }
 
+    /**
+     * 指定渲染器工厂(如直播的软解工厂 {@link com.github.tvbox.osc.player.LiveExoRenderersFactory}),
+     * 需在 {@link #initPlayer()} 之前调用; 不设置时用设置里的全局渲染器.
+     */
+    public void setRenderersFactory(DefaultRenderersFactory factory) {
+        mRenderersFactory = factory;
+    }
+
+    /**
+     * 指定扩展渲染器模式(FFmpeg 软解优先级):
+     * {@link DefaultRenderersFactory#EXTENSION_RENDERER_MODE_PREFER}(软解优先) /
+     * {@link DefaultRenderersFactory#EXTENSION_RENDERER_MODE_ON}(硬解优先, 软解兜底) /
+     * {@link DefaultRenderersFactory#EXTENSION_RENDERER_MODE_OFF};
+     * 不设置(-1)时用设置里的全局值.
+     */
+    public void setExtensionRendererMode(int mode) {
+        mExtensionRendererMode = mode;
+    }
+
+    /**
+     * 指定缓冲区策略(直播用小的有上限缓冲区降内存), 不设置时用 Exo 默认.
+     */
+    public void setLoadControl(LoadControl loadControl) {
+        mLoadControl = loadControl;
+    }
+
     @SuppressLint("UnsafeOptInUsageError")
     @Override
     public void initPlayer() {
@@ -72,7 +99,9 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
             mRenderersFactory = HawkUtils.createExoRendererActualValue(mAppContext);
         }
         //https://github.com/androidx/media/blob/release/libraries/decoder_ffmpeg/README.md
-        mRenderersFactory.setExtensionRendererMode(HawkUtils.getExoRendererModeActualValue());
+        mRenderersFactory.setExtensionRendererMode(mExtensionRendererMode >= 0
+                ? mExtensionRendererMode
+                : HawkUtils.getExoRendererModeActualValue());
         mRenderersFactory.setEnableDecoderFallback(true);
 
         if (mTrackSelector == null) {

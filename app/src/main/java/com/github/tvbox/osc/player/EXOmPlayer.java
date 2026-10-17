@@ -10,6 +10,9 @@ import androidx.media3.common.MimeTypes;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackGroup;
 import androidx.media3.common.Tracks;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.LoadControl;
 import androidx.media3.exoplayer.source.TrackGroupArray;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.trackselection.MappingTrackSelector;
@@ -17,6 +20,18 @@ import com.github.tvbox.osc.util.StringUtils;
 import xyz.doikki.videoplayer.exo.ExoMediaPlayer;
 
 public class EXOmPlayer extends ExoMediaPlayer {
+
+    /** 硬解: MediaCodec 优先, FFmpeg 软解兜底(硬解不支持的编码/音频自动转软解) */
+    public static final int DECODER_HARD = 0;
+    /** 软解: FFmpeg 软解优先, MediaCodec 兜底 */
+    public static final int DECODER_SOFT = 1;
+
+    /** 解码方式名称(直播设置里存的字符串) */
+    public static final String DECODE_SOFT_NAME = "软解";
+    public static final String DECODE_HARD_NAME = "硬解";
+
+    private int decoderMode = -1;
+
     private String audioId = "";
     private String subtitleId = "";
 
@@ -24,6 +39,52 @@ public class EXOmPlayer extends ExoMediaPlayer {
         super(context);
     }
 
+    /**
+     * 带解码方式的构造(直播播放器用): 同时应用直播缓冲区策略.
+     *
+     * @param decoderMode {@link #DECODER_HARD} / {@link #DECODER_SOFT}
+     */
+    public EXOmPlayer(Context context, int decoderMode) {
+        super(context);
+        setDecoderMode(decoderMode);
+    }
+
+    /** "软解" -> {@link #DECODER_SOFT}, 其余(含 null) -> {@link #DECODER_HARD} */
+    public static int decodeModeOf(String name) {
+        return DECODE_SOFT_NAME.equals(name) ? DECODER_SOFT : DECODER_HARD;
+    }
+
+    public static String decodeNameOf(int mode) {
+        return mode == DECODER_SOFT ? DECODE_SOFT_NAME : DECODE_HARD_NAME;
+    }
+
+    /**
+     * 设置解码方式: 两种方式都用 {@link LiveExoRenderersFactory}
+     * (系统硬解 + FFmpeg 软解), 区别只在软解优先级;
+     * 同时把直播缓冲区调小(有上限, 起播更快, 内存更省).
+     * 需在 {@link #initPlayer()} 之前调用.
+     */
+    public void setDecoderMode(int decoderMode) {
+        this.decoderMode = decoderMode;
+        setRenderersFactory(new LiveExoRenderersFactory(mAppContext));
+        setExtensionRendererMode(decoderMode == DECODER_SOFT
+                ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
+        setLoadControl(createLiveLoadControl());
+    }
+
+    public int getDecoderMode() {
+        return decoderMode;
+    }
+
+    /** 直播缓冲区: 2s~20s / 24MB 上限, 1s 即可起播, 不回看(省内存) */
+    private static LoadControl createLiveLoadControl() {
+        return new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(2000, 20000, 1000, 2000)
+                .setTargetBufferBytes(24 * 1024 * 1024)
+                .setBackBuffer(0, false)
+                .build();
+    }
 
     @SuppressLint("UnsafeOptInUsageError")
     public TrackInfo getTrackInfo() {
