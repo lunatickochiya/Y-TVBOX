@@ -52,6 +52,7 @@ import com.github.tvbox.osc.ui.adapter.LiveSettingItemAdapter;
 import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
 import com.github.tvbox.osc.ui.dialog.LiveChannelVisibilityDialog;
+import com.github.tvbox.osc.ui.dialog.LiveGroupToggleDialog;
 import com.github.tvbox.osc.ui.dialog.LivePasswordDialog;
 import com.github.tvbox.osc.ui.dialog.LiveUrlDialog;
 import com.github.tvbox.osc.util.EpgUtil;
@@ -1153,6 +1154,24 @@ public class LivePlayActivity extends BaseActivity {
         dialog.show();
     }
 
+    /** 直播设置-分组开关(一键开关整个分组, 如关闭 4K 分组) */
+    private void showGroupToggleDialog() {
+        List<LiveChannelGroup> all = ApiConfig.get().getChannelGroupList();
+        if (all == null || all.isEmpty()) {
+            Toast.makeText(mContext, "暂无频道数据", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        LiveGroupToggleDialog dialog = new LiveGroupToggleDialog(this, all,
+                new LiveGroupToggleDialog.OnConfirmListener() {
+                    @Override
+                    public void onConfirm(ArrayList<String> hidden) {
+                        LiveChannelFilter.saveHidden(hidden);
+                        refreshLiveChannelList();
+                    }
+                });
+        dialog.show();
+    }
+
     /** 用新的直播地址重新加载频道列表(与 ApiConfig 的代理地址格式一致) */
     private void reloadLiveSource(String liveUrl) {
         try {
@@ -1926,7 +1945,7 @@ public class LivePlayActivity extends BaseActivity {
                 }
                 liveSettingItemAdapter.selectItem(position, select, false);
                 break;
-            case 5:// 直播配置: 直播地址 / EPG地址 / 频道显示
+            case 5:// 直播配置: 直播地址 / EPG地址 / 频道显示 / 分组开关
                 switch (position) {
                     case 0:
                         showLiveUrlDialog();
@@ -1936,6 +1955,9 @@ public class LivePlayActivity extends BaseActivity {
                         break;
                     case 2:
                         showChannelVisibilityDialog();
+                        break;
+                    case 3:
+                        showGroupToggleDialog();
                         break;
                 }
                 break;
@@ -2129,7 +2151,7 @@ public class LivePlayActivity extends BaseActivity {
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
         ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度"));
-        ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("直播地址", "EPG地址", "频道显示"));
+        ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("直播地址", "EPG地址", "频道显示", "分组开关"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
         itemsArrayList.add(sourceItems);

@@ -11,6 +11,8 @@ public class LiveVisibilityItem {
     public String channelName;
     /** true=在频道列表显示 */
     public boolean visible;
+    /** 分组下的频道数量(仅分组项用于展示) */
+    public int channelCount;
 
     public static LiveVisibilityItem group(String groupName, boolean visible) {
         LiveVisibilityItem item = new LiveVisibilityItem();

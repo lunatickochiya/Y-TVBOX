@@ -35,7 +35,9 @@ public class LiveVisibilityAdapter extends BaseQuickAdapter<LiveVisibilityItem, 
         checkBox.setOnCheckedChangeListener(null);
         checkBox.setChecked(item.visible);
         if (item.isGroup) {
-            checkBox.setText("▸ " + item.groupName);
+            checkBox.setText(item.channelCount > 0
+                    ? "▸ " + item.groupName + " (" + item.channelCount + ")"
+                    : "▸ " + item.groupName);
             checkBox.setTextColor(mContext.getResources().getColor(R.color.color_FFFFFF));
         } else {
             checkBox.setText("      " + item.channelName);
