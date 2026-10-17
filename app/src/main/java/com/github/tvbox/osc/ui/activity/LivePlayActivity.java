@@ -54,6 +54,7 @@ import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
 import com.github.tvbox.osc.ui.dialog.LiveChannelVisibilityDialog;
 import com.github.tvbox.osc.ui.dialog.LiveGroupToggleDialog;
+import com.github.tvbox.osc.ui.dialog.LiveQrConfigDialog;
 import com.github.tvbox.osc.ui.dialog.LivePasswordDialog;
 import com.github.tvbox.osc.ui.dialog.LiveUrlDialog;
 import com.github.tvbox.osc.util.EpgUtil;
@@ -1103,10 +1104,34 @@ public class LivePlayActivity extends BaseActivity {
         getWindow().setAttributes(attributes);
     }
 
+    /** 直播设置-扫码配置(二维码 + 直播源/EPG源输入 + 历史记录) */
+    private void showQrConfigDialog() {
+        LiveQrConfigDialog dialog = new LiveQrConfigDialog(this, new LiveQrConfigDialog.OnSaveListener() {
+            @Override
+            public void onSave(String liveUrl, String epgUrl) {
+                if (!liveUrl.isEmpty()) {
+                    ApiConfig.putLiveHistory(liveUrl);
+                    reloadLiveSource(liveUrl);
+                    Toast.makeText(mContext, "直播源已保存, 正在重新加载频道...", Toast.LENGTH_SHORT).show();
+                }
+                if (!epgUrl.isEmpty()) {
+                    ApiConfig.putEPGHistory(epgUrl);
+                    epgStringAddress = epgUrl;
+                    if (isCurrentLiveChannelValid()) {
+                        getEpg(new Date());
+                    }
+                    Toast.makeText(mContext, "EPG地址已保存", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        dialog.show();
+    }
+
     /** 直播设置-直播地址 */
     private void showLiveUrlDialog() {
         String current = Hawk.get(HawkConfig.LIVE_URL, "");
         LiveUrlDialog dialog = new LiveUrlDialog(this, "直播地址", "请输入直播源地址(m3u/txt)", current,
+                HawkConfig.LIVE_HISTORY,
                 new LiveUrlDialog.OnSubmitListener() {
                     @Override
                     public void onSubmit(String url) {
@@ -1114,6 +1139,7 @@ public class LivePlayActivity extends BaseActivity {
                             return;
                         }
                         Hawk.put(HawkConfig.LIVE_URL, url);
+                        ApiConfig.putLiveHistory(url);
                         Toast.makeText(mContext, "直播地址已保存, 正在重新加载频道...", Toast.LENGTH_SHORT).show();
                         reloadLiveSource(url);
                     }
@@ -1124,11 +1150,13 @@ public class LivePlayActivity extends BaseActivity {
     /** 直播设置-EPG地址 */
     private void showEpgUrlDialog() {
         String current = Hawk.get(HawkConfig.EPG_URL, "");
-        LiveUrlDialog dialog = new LiveUrlDialog(this, "EPG地址", "请输入EPG地址(支持 xml/xml.gz/json)", current,
+        LiveUrlDialog dialog = new LiveUrlDialog(this, "EPG地址", "请输入EPG地址(xml/xml.gz/json)", current,
+                HawkConfig.EPG_HISTORY,
                 new LiveUrlDialog.OnSubmitListener() {
                     @Override
                     public void onSubmit(String url) {
                         Hawk.put(HawkConfig.EPG_URL, url);
+                        ApiConfig.putEPGHistory(url);
                         epgStringAddress = url;
                         if (isCurrentLiveChannelValid()) {
                             getEpg(new Date());
@@ -1913,6 +1941,10 @@ public class LivePlayActivity extends BaseActivity {
                     case 6://亮度
                         showLiveBrightnessDialog();
                         return;
+                    case 7://开机自启(y-live 直接进直播, 没有点播设置页, 开关放这里)
+                        select = !Hawk.get(HawkConfig.BOOT_START_LIVE, true);
+                        Hawk.put(HawkConfig.BOOT_START_LIVE, select);
+                        break;
 //                    case 5:
 //                        // takagen99 : Added Live History list selection - 直播列表
 //                        ArrayList<String> liveHistory = Hawk.get(HawkConfig.LIVE_HISTORY, new ArrayList<String>());
@@ -1949,18 +1981,21 @@ public class LivePlayActivity extends BaseActivity {
                 }
                 liveSettingItemAdapter.selectItem(position, select, false);
                 break;
-            case 5:// 直播配置: 直播地址 / EPG地址 / 频道显示 / 分组开关
+            case 5:// 直播配置: 扫码配置 / 直播地址 / EPG地址 / 频道显示 / 分组开关
                 switch (position) {
                     case 0:
-                        showLiveUrlDialog();
+                        showQrConfigDialog();
                         break;
                     case 1:
-                        showEpgUrlDialog();
+                        showLiveUrlDialog();
                         break;
                     case 2:
-                        showChannelVisibilityDialog();
+                        showEpgUrlDialog();
                         break;
                     case 3:
+                        showChannelVisibilityDialog();
+                        break;
+                    case 4:
                         showGroupToggleDialog();
                         break;
                 }
@@ -2023,7 +2058,8 @@ public class LivePlayActivity extends BaseActivity {
                 reloadLiveSource(liveUrl);
             } else {
                 Toast.makeText(App.getInstance(), getString(R.string.act_live_play_empty_live_url), Toast.LENGTH_LONG).show();
-                showLiveUrlDialog();
+                // 没有直播源时直接打开扫码配置(可扫码也可直接输入)
+                showQrConfigDialog();
             }
             return;
         }
@@ -2104,6 +2140,12 @@ public class LivePlayActivity extends BaseActivity {
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void refresh(RefreshEvent event) {
         if (event.type == RefreshEvent.TYPE_EPG_URL_CHANGE) {
+            // 手机网页推送过来的 EPG 地址: 保存 + 记入历史
+            String url = event.obj == null ? "" : event.obj.toString().trim();
+            if (!StringUtils.isBlank(url)) {
+                Hawk.put(HawkConfig.EPG_URL, url);
+                ApiConfig.putEPGHistory(url);
+            }
             epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
             if (channel_Name != null) {
                 getEpg(new Date());
@@ -2115,6 +2157,7 @@ public class LivePlayActivity extends BaseActivity {
             String url = event.obj == null ? "" : event.obj.toString().trim();
             if (!StringUtils.isBlank(url)) {
                 Hawk.put(HawkConfig.LIVE_URL, url);
+                ApiConfig.putLiveHistory(url);
                 liveChannelGroupList.clear();
                 reloadLiveSource(url);
             }
@@ -2170,8 +2213,8 @@ public class LivePlayActivity extends BaseActivity {
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo软解", "exo硬解"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
-        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度"));
-        ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("直播地址", "EPG地址", "频道显示", "分组开关"));
+        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度", "开机自启"));
+        ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "分组开关"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
         itemsArrayList.add(sourceItems);
@@ -2205,6 +2248,7 @@ public class LivePlayActivity extends BaseActivity {
         liveSettingGroupList.get(4).getLiveSettingItems().get(3).setItemSelected(Hawk.get(HawkConfig.LIVE_CROSS_GROUP, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(4).setItemSelected(Hawk.get(HawkConfig.LIVE_SKIP_PASSWORD, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(5).setItemSelected(Hawk.get(HawkConfig.FCC_ENABLE, true));
+        liveSettingGroupList.get(4).getLiveSettingItems().get(7).setItemSelected(Hawk.get(HawkConfig.BOOT_START_LIVE, true));
     }
 
     private void loadCurrentSourceList() {

@@ -690,7 +690,8 @@ public class ApiConfig {
         buildIjkCodes(null, new Gson().fromJson(DEFAULT_IJK_ADS, JsonObject.class));
     }
 
-    private void putLiveHistory(String url) {
+    /** 记录直播源历史(最多 20 条, 最新的在最前) */
+    public static void putLiveHistory(String url) {
         if (!url.isEmpty()) {
             ArrayList<String> liveHistory = Hawk.get(HawkConfig.LIVE_HISTORY, new ArrayList<String>());
             if (!liveHistory.contains(url))

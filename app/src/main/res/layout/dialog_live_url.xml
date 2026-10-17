@@ -56,6 +56,20 @@
             android:orientation="horizontal">
 
             <TextView
+                android:id="@+id/btnHistory"
+                android:layout_width="@dimen/vs_50"
+                android:layout_height="@dimen/vs_50"
+                android:layout_margin="@dimen/vs_10"
+                android:layout_weight="1"
+                android:background="@drawable/button_dialog_main"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:text="历史"
+                android:textColor="@color/color_FFFFFF"
+                android:textSize="@dimen/ts_20" />
+
+            <TextView
                 android:id="@+id/btnCancel"
                 android:layout_width="@dimen/vs_50"
                 android:layout_height="@dimen/vs_50"
