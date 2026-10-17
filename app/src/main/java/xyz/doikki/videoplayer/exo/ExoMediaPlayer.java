@@ -100,10 +100,13 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
             mRenderersFactory = HawkUtils.createExoRendererActualValue(mAppContext);
         }
         //https://github.com/androidx/media/blob/release/libraries/decoder_ffmpeg/README.md
-        mRenderersFactory.setExtensionRendererMode(mExtensionRendererMode >= 0
+        int extensionMode = mExtensionRendererMode >= 0
                 ? mExtensionRendererMode
-                : HawkUtils.getExoRendererModeActualValue());
+                : HawkUtils.getExoRendererModeActualValue();
+        mRenderersFactory.setExtensionRendererMode(extensionMode);
         mRenderersFactory.setEnableDecoderFallback(true);
+        Log.i("YLive", "Exo initPlayer renderers=" + mRenderersFactory.getClass().getSimpleName()
+                + " extensionMode=" + extensionMode);
 
         if (mTrackSelector == null) {
             mTrackSelector = new DefaultTrackSelector(mAppContext);
