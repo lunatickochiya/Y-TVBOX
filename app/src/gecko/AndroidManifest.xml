@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  gecko 变体专用 manifest。
+  GeckoView 118 的 native 库(libxul.so 等)支持 API 16, gecko 变体按原设计保留
+  Android 4.4(minSdk 19) 支持; 但 GeckoView 的 AAR 里声明了 minSdkVersion 21,
+  manifest merger 会直接报 "minSdkVersion 19 cannot be smaller than version 21" 导致
+  gecko 变体(尤其 armeabi)构建失败, 这里放宽 manifest 合并检查。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-sdk tools:overrideLibrary="org.mozilla.geckoview" />
+
+</manifest>
