@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.ui.dialog;
 
 import android.content.Context;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -34,12 +35,16 @@ public class LiveChannelVisibilityDialog extends BaseDialog {
                                        final OnConfirmListener listener) {
         super(context);
         setContentView(R.layout.dialog_live_visibility);
+        TextView title = findViewById(R.id.tvVisibilityTitle);
+        if (title != null) title.setText("频道显示 (取消勾选隐藏)");
         List<String> hidden = LiveChannelFilter.getHidden();
         if (groups != null) {
             for (LiveChannelGroup group : groups) {
                 if (group == null || group.getLiveChannels() == null) continue;
-                items.add(LiveVisibilityItem.group(group.getGroupName(),
-                        !LiveChannelFilter.isGroupHidden(group.getGroupName(), hidden)));
+                LiveVisibilityItem groupItem = LiveVisibilityItem.group(group.getGroupName(),
+                        !LiveChannelFilter.isGroupHidden(group.getGroupName(), hidden));
+                groupItem.channelCount = group.getLiveChannels().size();
+                items.add(groupItem);
                 for (LiveChannelItem channel : group.getLiveChannels()) {
                     items.add(LiveVisibilityItem.channel(group.getGroupName(), channel.getChannelName(),
                             !LiveChannelFilter.isChannelHidden(group.getGroupName(), channel.getChannelName(), hidden)));

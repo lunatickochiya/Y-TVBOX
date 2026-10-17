@@ -49,6 +49,41 @@ public class LiveChannelFilter {
         return channelName != null && hidden != null && hidden.contains(channelKey(groupName, channelName));
     }
 
+    /** 当前被关闭(隐藏)的分组名列表 */
+    public static ArrayList<String> getHiddenGroups() {
+        ArrayList<String> groups = new ArrayList<>();
+        for (String key : getHidden()) {
+            if (key != null && key.startsWith(GROUP_PREFIX)) {
+                String name = key.substring(GROUP_PREFIX.length());
+                if (!groups.contains(name)) groups.add(name);
+            }
+        }
+        return groups;
+    }
+
+    /**
+     * 分组开关: 只更新分组级隐藏项, 保留「频道显示」里单独隐藏的频道设置.
+     *
+     * @param allGroups    完整分组名列表
+     * @param hiddenGroups 需要关闭(隐藏)的分组名列表
+     */
+    public static ArrayList<String> updateHiddenGroups(List<String> allGroups, List<String> hiddenGroups) {
+        ArrayList<String> result = new ArrayList<>();
+        for (String key : getHidden()) {
+            if (key != null && !key.startsWith(GROUP_PREFIX)) result.add(key);
+        }
+        if (allGroups != null) {
+            for (String group : allGroups) {
+                if (group == null) continue;
+                String key = groupKey(group);
+                if (hiddenGroups != null && hiddenGroups.contains(group) && !result.contains(key)) {
+                    result.add(key);
+                }
+            }
+        }
+        return result;
+    }
+
     /**
      * 过滤被隐藏的分组/频道, 返回新的列表(不修改传入数据).
      * 注意: 过滤后需要重新编号, 因为直播界面用列表位置当索引.
