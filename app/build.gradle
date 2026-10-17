@@ -18,7 +18,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.github.ytvbox.osc'
+        applicationId 'com.github.ylive.osc'
         targetSdkVersion 28
         versionCode 1
         versionName "1.0.".concat(buildTime())
@@ -77,7 +77,7 @@ android {
 
         hisense {
             //海信的
-            applicationId 'com.github.ytvbox.osc.hisense'
+            applicationId 'com.github.ylive.osc.hisense'
             dimension = "brand"
         }
         normal {
@@ -88,52 +88,30 @@ android {
         python {
             dimension = "mode"
             minSdkVersion 21
-            // Python 版本需要额外的 Proguard 规则
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-python.pro'
-        }
-        x5 {
-            // X5 内核版: 在 Java 版基础上打包腾讯 TBS/X5 SDK, 提供 X5 WebView 嗅探内核
-            dimension = "mode"
-            minSdkVersion 21
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-        gecko {
-            // Gecko 内核版: 打包 Mozilla GeckoView(omni AAR 含全部 ABI, 打包时按 abiFilters 只留对应 ABI)
-            dimension = "mode"
-            minSdkVersion 21
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
             def flavorNames = variant.productFlavors.collect { it.name == "normal" ? "java" : it.name }.join('-')
             // 构建自定义文件名
-            def fileName = "Y-TVBOX_main_${variant.buildType.name}-${flavorNames}.apk"
+            def fileName = "Y-LIVE_${variant.buildType.name}-${flavorNames}.apk"
             outputFileName = fileName
         }
     }
 
     sourceSets {
-        // 各内核版本按需组合实现/空实现源集:
+        // y-live 只有 normal(纯直播 Java 版) 与 python 两种模式:
         //   std = X5Support 空实现, geckostub = GeckoSupport 空实现, normal = pyLoader 桩
         normal.java.srcDir 'src/std/java'
         normal.java.srcDir 'src/geckostub/java'
         python.java.srcDir 'src/std/java'
         python.java.srcDir 'src/geckostub/java'
-        x5.java.srcDir 'src/geckostub/java'
-        x5.java.srcDir 'src/normal/java'
-        gecko.java.srcDir 'src/std/java'
-        gecko.java.srcDir 'src/normal/java'
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-    }
-
-    kotlinOptions {
-        // GeckoView 144 传递依赖 kotlin-stdlib 2.2.10, 项目 Kotlin 编译器(1.9.25)需跳过元数据版本检查
-        freeCompilerArgs += ["-Xskip-metadata-version-check"]
     }
 
     lintOptions {
@@ -147,22 +125,6 @@ android {
 
     lint {
         disable 'UnsafeOptInUsageError'
-    }
-
-    androidResources {
-        // X5 内核(.tbs)本身是压缩包, 不再二次压缩, 加快打包与运行时拷贝
-        noCompress 'tbs'
-    }
-}
-
-// X5 内置内核: 只为 x5 变体打包对应 ABI 的内核文件(app/src/x5core/<abi>/assets/tbs/*.tbs),
-// 普通/python 变体不包含, 避免 APK 体积膨胀
-androidComponents {
-    onVariants(selector().all()) { variant ->
-        if (variant.productFlavors.any { it.second == "x5" }) {
-            def abi = variant.productFlavors.find { it.first == "abi" }?.second ?: "arm64"
-            variant.sources.assets?.addStaticSourceDirectory("src/x5core/${abi}")
-        }
     }
 }
 
@@ -190,24 +152,7 @@ dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'com.google.android.material:material:1.12.0'
     implementation project(path: ':quickjs')
-    pythonImplementation project(":pyramid")
-    // X5 内核版: 腾讯 TBS/X5 SDK
-    x5Implementation 'com.tencent.tbs:tbssdk:44286'
-    // Gecko 内核版: Mozilla GeckoView(144 是最后支持 Android 5.0+ 的版本)
-    geckoImplementation('org.mozilla.geckoview:geckoview-omni:144.0.20251027123126') {
-        // GeckoView's latest AndroidX dependencies require newer Android build tools.
-        exclude group: 'androidx.annotation', module: 'annotation-experimental'
-        exclude group: 'androidx.core', module: 'core'
-        exclude group: 'androidx.lifecycle', module: 'lifecycle-common'
-        exclude group: 'androidx.lifecycle', module: 'lifecycle-process'
-    }
-    // Keep Gecko builds compatible with compileSdk 34, AGP 7.4.2 and the API 21 baseline.
-    geckoImplementation 'androidx.annotation:annotation-experimental:1.4.1'
-    geckoImplementation 'androidx.core:core:1.13.1'
-    geckoImplementation 'androidx.core:core-ktx:1.13.1'
-    geckoImplementation 'androidx.lifecycle:lifecycle-common:2.8.7'
-    geckoImplementation 'androidx.lifecycle:lifecycle-process:2.8.7'
-    
+    // X5/Gecko 内核版已移除: y-live 是纯直播应用, 不做点播嗅探
     kapt 'androidx.room:room-compiler:2.6.1'
     implementation 'com.github.alidili:FlowLayout:v1.5'
     implementation 'androidx.room:room-runtime:2.6.1'

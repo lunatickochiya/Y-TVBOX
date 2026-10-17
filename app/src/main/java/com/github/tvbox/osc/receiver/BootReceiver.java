@@ -6,14 +6,14 @@ import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 
-import com.github.tvbox.osc.ui.activity.HomeActivity;
+import com.github.tvbox.osc.ui.activity.LivePlayActivity;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.orhanobut.hawk.Hawk;
 
 /**
- * 开机自启进直播
- * 在设置里开启"开机自启进直播"后, 盒子开机自动进入 TVBox,
- * 配合"启动时进直播"开关即可直接进直播界面, 变成纯电视播放器。
+ * 开机自启进直播 (y-live: 应用启动即直播界面, 这里直接拉起直播)
+ * 在设置里开启"开机自启进直播"后, 盒子开机自动进入 y-live 直播界面,
+ * 变成纯电视播放器。
  *
  * 兼容两种广播:
  * - LOCKED_BOOT_COMPLETED: 设备未解锁时派发 (部分 Android 12+ 无锁屏 ROM 只发这个)
@@ -47,7 +47,7 @@ public class BootReceiver extends BroadcastReceiver {
                                 start = true;
                             }
                             if (start) {
-                                Intent i = new Intent(ctx, HomeActivity.class);
+                                Intent i = new Intent(ctx, LivePlayActivity.class);
                                 i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                                 ctx.startActivity(i);
                             }

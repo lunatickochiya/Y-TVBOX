@@ -1,4 +1,4 @@
-name: Y-TVBOX
+name: Y-LIVE
 
 on:
   workflow_dispatch:
@@ -31,7 +31,7 @@ jobs:
           cache: gradle
 
       - name: Set release tag
-        run: echo "RELEASE_TAG=Y-TVBOX-$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_ENV"
+        run: echo "RELEASE_TAG=Y-LIVE-$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_ENV"
 
       - name: Configure Android SDK
         run: printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
@@ -64,7 +64,7 @@ jobs:
               -keyalg RSA \
               -keysize 2048 \
               -validity 10000 \
-              -dname "CN=Y-TVBOX Temporary,OU=GitHub Actions,O=Y-TVBOX,C=CN"
+              -dname "CN=Y-LIVE Temporary,OU=GitHub Actions,O=Y-LIVE,C=CN"
           fi
 
           {
@@ -80,17 +80,13 @@ jobs:
           ./gradlew \
             :app:assembleArmeabiGenericNormalRelease \
             :app:assembleArm64GenericNormalRelease \
-            :app:assembleArmeabiGenericX5Release \
-            :app:assembleArm64GenericX5Release \
-            :app:assembleArmeabiGenericGeckoRelease \
-            :app:assembleArm64GenericGeckoRelease \
             --no-daemon --stacktrace
 
       - name: Collect and verify APKs
         run: |
           mkdir -p release
-          find app/build/outputs/apk -type f -name 'Y-TVBOX_*.apk' -exec cp '{}' release/ \;
-          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 6
+          find app/build/outputs/apk -type f -name 'Y-LIVE_*.apk' -exec cp '{}' release/ \;
+          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 2
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           for apk in release/*.apk; do
@@ -108,6 +104,6 @@ jobs:
           else
             gh release create "$RELEASE_TAG" release/* \
               --target "$GITHUB_SHA" \
-              --title "Y-TVBOX $RELEASE_TAG" \
+              --title "Y-LIVE $RELEASE_TAG" \
               --generate-notes
           fi
