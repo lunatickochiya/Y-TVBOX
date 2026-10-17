@@ -42,6 +42,7 @@ import com.github.tvbox.osc.bean.LiveSettingItem;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.fcc.FccController;
 import com.github.tvbox.osc.player.controller.LiveController;
+import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.ui.adapter.ApiHistoryDialogAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveChannelGroupAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveChannelItemAdapter;
@@ -339,6 +340,9 @@ public class LivePlayActivity extends BaseActivity {
         initLiveChannelView();
         initSettingGroupView();
         initSettingItemView();
+        // y-live: 纯直播版没有点播界面启动本地服务器, 这里自己拉起
+        // (直播列表代理 127.0.0.1:9978 和手机扫码推送都依赖它)
+        ControlManager.get().startServer();
         initLiveChannelList();
         initLiveSettingGroupList();
 
@@ -2013,8 +2017,14 @@ public class LivePlayActivity extends BaseActivity {
     private void initLiveChannelList() {
         List<LiveChannelGroup> list = ApiConfig.get().getChannelGroupList();
         if (list.isEmpty()) {
-            Toast.makeText(App.getInstance(), getString(R.string.act_live_play_empty_channel), Toast.LENGTH_SHORT).show();
-            finish();
+            // y-live: 纯直播版不加载点播配置, 直接用「直播地址」加载频道列表
+            String liveUrl = Hawk.get(HawkConfig.LIVE_URL, "");
+            if (StringUtils.isNotBlank(liveUrl)) {
+                reloadLiveSource(liveUrl);
+            } else {
+                Toast.makeText(App.getInstance(), getString(R.string.act_live_play_empty_live_url), Toast.LENGTH_LONG).show();
+                showLiveUrlDialog();
+            }
             return;
         }
 
@@ -2097,6 +2107,16 @@ public class LivePlayActivity extends BaseActivity {
             epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
             if (channel_Name != null) {
                 getEpg(new Date());
+            }
+            return;
+        }
+        if (event.type == RefreshEvent.TYPE_LIVE_URL_CHANGE) {
+            // 手机网页/推送过来的直播地址(LivePlayActivity 是 y-live 唯一界面, 在这里直接生效)
+            String url = event.obj == null ? "" : event.obj.toString().trim();
+            if (!StringUtils.isBlank(url)) {
+                Hawk.put(HawkConfig.LIVE_URL, url);
+                liveChannelGroupList.clear();
+                reloadLiveSource(url);
             }
             return;
         }

@@ -20,14 +20,11 @@ import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.LocaleHelper;
 import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.OkGoHelper;
-import com.github.tvbox.osc.util.PlayerHelper;
 import com.github.tvbox.osc.util.SubtitleHelper;
-import com.github.tvbox.osc.webx.X5Support;
 import com.hjq.permissions.XXPermissions;
 import com.kingja.loadsir.core.LoadSir;
 import com.orhanobut.hawk.Hawk;
 import com.p2p.P2PClass;
-import com.whl.quickjs.android.QuickJSLoader;
 import com.yanzhenjie.andserver.AndServer;
 import com.yanzhenjie.andserver.Server;
 
@@ -64,10 +61,6 @@ public class App extends MultiDexApplication {
         super.onCreate();
         SubtitleHelper.initSubtitleColor(this);
         initParams();
-        // X5 版本且用户选择了 X5 嗅探时, 提前初始化内核(未安装时 TBS 会在后台自动下载)
-        if (X5Support.isSupported() && Hawk.get(HawkConfig.PARSE_WEBVIEW_TYPE, 0) == 2) {
-            X5Support.init(this, null);
-        }
         // takagen99 : Initialize Locale
         initLocale();
         // OKGo
@@ -76,9 +69,9 @@ public class App extends MultiDexApplication {
         XXPermissions.setCheckMode(false);
         // Get EPG Info
         EpgUtil.init();
-        // 初始化Web服务器
+        // 初始化Web服务器(直播列表代理 + 手机扫码推送必须)
         ControlManager.init(this);
-        //初始化数据库
+        //初始化数据库(纯直播版不会打开库文件, 仅设置单例, 避免点播代码被调用时抛异常)
         AppDataManager.init();
         LoadSir.beginBuilder()
                 .addCallback(new EmptyCallback())
@@ -95,7 +88,8 @@ public class App extends MultiDexApplication {
             AutoSizeConfig.getInstance().setScreenWidth(screenHeight);
             AutoSizeConfig.getInstance().setScreenHeight(screenWidth);
         }
-        PlayerHelper.init();
+        // y-live: 不再预热 IJK 原生库(PlayerHelper.init 里的 loadLibrariesOnce),
+        // 只有选 ijk 硬解/软解时才加载, 启动更快、Exo/系统播放时不占原生内存
 
         // Delete Cache
         /*File dir = getCacheDir();
@@ -105,8 +99,7 @@ public class App extends MultiDexApplication {
 
         FileUtils.cleanPlayerCache();
 
-        // Add JS support
-        QuickJSLoader.init();
+        // y-live: QuickJS 只有点播爬虫用到, 纯直播版不初始化(省内存 + 加快启动)
 
         // add font support, my tv embed font not include emoji
         String extStorageDir = Environment.getExternalStorageDirectory().getAbsolutePath();
@@ -140,29 +133,18 @@ public class App extends MultiDexApplication {
         Hawk.init(this).build();
         Hawk.put(HawkConfig.DEBUG_OPEN, false);
 
-        // 首页选项
-        putDefault(HawkConfig.HOME_SHOW_SOURCE, true);       //数据源显示: true=开启, false=关闭
-        putDefault(HawkConfig.HOME_SEARCH_POSITION, false);  //按钮位置-搜索: true=上方, false=下方
-        putDefault(HawkConfig.HOME_MENU_POSITION, true);     //按钮位置-设置: true=上方, false=下方
-        putDefault(HawkConfig.HOME_REC, 1);                  //推荐: 0=豆瓣热播, 1=站点推荐, 2=观看历史
-        putDefault(HawkConfig.HOME_NUM, 4);                  //历史条数: 0=20条, 1=40条, 2=60条, 3=80条, 4=100条
-        // 播放器选项
-        putDefault(HawkConfig.SHOW_PREVIEW, true);           //窗口预览: true=开启, false=关闭
-        putDefault(HawkConfig.PLAY_SCALE, 0);                //画面缩放: 0=默认, 1=16:9, 2=4:3, 3=填充, 4=原始, 5=裁剪
-        putDefault(HawkConfig.BACKGROUND_PLAY_TYPE, 0);      //后台：0=关闭, 1=开启, 2=画中画
-        putDefault(HawkConfig.PLAY_TYPE, 1);                 //播放器: 0=系统, 1=IJK, 2=Exo, 3=MX, 4=Reex, 5=Kodi
-        putDefault(HawkConfig.IJK_CODEC, "硬解码");           //IJK解码: 软解码, 硬解码
-        // 系统选项
-        putDefault(HawkConfig.HOME_LOCALE, 0);               //语言: 0=中文, 1=英文
-        putDefault(HawkConfig.THEME_SELECT, 0);              //主题: 0=奈飞, 1=哆啦, 2=百事, 3=鸣人, 4=小黄, 5=八神, 6=樱花
-        putDefault(HawkConfig.SEARCH_VIEW, 1);               //搜索展示: 0=文字列表, 1=缩略图
-        putDefault(HawkConfig.PARSE_WEBVIEW, true);          //嗅探Webview: true=系统自带, false=XWalkView
-        putDefault(HawkConfig.DOH_URL, 0);                   //安全DNS: 0=关闭, 1=腾讯, 2=阿里, 3=360, 4=Google, 5=AdGuard, 6=Quad9
-        // 嗅探 WebView 类型: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本)
-        if (!Hawk.contains(HawkConfig.PARSE_WEBVIEW_TYPE)) {
-            Hawk.put(HawkConfig.PARSE_WEBVIEW_TYPE, Hawk.get(HawkConfig.PARSE_WEBVIEW, true) ? 0 : 1);
-        }
-
+        // 播放器: 0=系统, 1=IJK, 2=Exo (纯直播版默认 Exo)
+        putDefault(HawkConfig.PLAY_TYPE, 2);
+        // IJK 解码: 软解码 / 硬解码
+        putDefault(HawkConfig.IJK_CODEC, "软解码");
+        // 直播「播放解码」默认选项: 0=系统, 1=ijk硬解, 2=ijk软解, 3=exo软解, 4=exo硬解
+        putDefault(HawkConfig.LIVE_PLAYER_TYPE, 3);
+        // 画面缩放: 0=默认, 1=16:9, 2=4:3, 3=填充, 4=原始, 5=裁剪
+        putDefault(HawkConfig.PLAY_SCALE, 0);
+        // 后台播放: 0=关闭, 1=开启, 2=画中画
+        putDefault(HawkConfig.BACKGROUND_PLAY_TYPE, 0);
+        // 语言: 0=中文, 1=英文
+        putDefault(HawkConfig.HOME_LOCALE, 0);
     }
 
     private void initLocale() {
