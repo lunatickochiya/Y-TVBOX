@@ -144,6 +144,8 @@ public class App extends MultiDexApplication {
         putDefault(HawkConfig.IJK_CODEC, "软解码");
         // 直播「播放解码」默认选项: 0=系统, 1=ijk硬解, 2=ijk软解, 3=exo软解, 4=exo硬解
         putDefault(HawkConfig.LIVE_PLAYER_TYPE, 3);
+        // Exo 解码方式: 0=硬解, 1=软解(纯直播版默认软解)
+        putDefault(HawkConfig.LIVE_EXO_DECODE, 1);
         // 画面缩放: 0=默认, 1=16:9, 2=4:3, 3=填充, 4=原始, 5=裁剪
         putDefault(HawkConfig.PLAY_SCALE, 0);
         // 后台播放: 0=关闭, 1=开启, 2=画中画
