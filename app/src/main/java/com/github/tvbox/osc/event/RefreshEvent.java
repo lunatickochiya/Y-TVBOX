@@ -1,33 +1,24 @@
 package com.github.tvbox.osc.event;
 
 /**
- * @author pj567
- * @date :2021/1/6
- * @description:
+ * 全局刷新事件(y-live 只保留直播相关)
  */
 public class RefreshEvent {
-    public static final int TYPE_PUSH_VOD = 99;
-    public static final int TYPE_REFRESH = 0;
-    public static final int TYPE_HISTORY_REFRESH = 1;
-    public static final int TYPE_QUICK_SEARCH = 2;
-    public static final int TYPE_QUICK_SEARCH_SELECT = 3;
-    public static final int TYPE_QUICK_SEARCH_WORD = 4;
-    public static final int TYPE_QUICK_SEARCH_WORD_CHANGE = 5;
-    public static final int TYPE_SEARCH_RESULT = 6;
-    public static final int TYPE_QUICK_SEARCH_RESULT = 7;
-    public static final int TYPE_API_URL_CHANGE = 8;
-    public static final int TYPE_PUSH_URL = 9;
-    public static final int TYPE_DRIVE_REFRESH = 10;
+    /** 直播界面刷新(切台/换源等) */
     public static final int TYPE_LIVEPLAY_UPDATE = 11;
-    public static final int TYPE_SUBTITLE_SIZE_CHANGE = 12;
+    /** 手机网页推送的直播源变化 */
     public static final int TYPE_LIVE_URL_CHANGE = 13;
+    /** 手机网页推送的 EPG 源变化 */
     public static final int TYPE_EPG_URL_CHANGE = 14;
-    public static final int TYPE_PROXYS_CHANGE = 18;
-    public static final int TYPE_APP_REFRESH = 15;
-    public static final int TYPE_FILTER_CHANGE = 16;
-    public static final int TYPE_REFRESH_NOTIFY = 17;
-    public static final int TYPE_SET_DANMU_SETTINGS = 18;
+
+    /**
+     * 事件类型
+     */
     public int type;
+
+    /**
+     * 附带的数据
+     */
     public Object obj;
 
     public RefreshEvent(int type) {

@@ -9,12 +9,9 @@ import androidx.multidex.MultiDexApplication;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.MemoryCategory;
-import com.github.catvod.crawler.JarLoader;
-import com.github.catvod.crawler.JsLoader;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.callback.EmptyCallback;
 import com.github.tvbox.osc.callback.LoadingCallback;
-import com.github.tvbox.osc.data.AppDataManager;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.util.EpgUtil;
 import com.github.tvbox.osc.util.FileUtils;
@@ -26,12 +23,8 @@ import com.github.tvbox.osc.util.SubtitleHelper;
 import com.hjq.permissions.XXPermissions;
 import com.kingja.loadsir.core.LoadSir;
 import com.orhanobut.hawk.Hawk;
-import com.p2p.P2PClass;
-import com.yanzhenjie.andserver.AndServer;
-import com.yanzhenjie.andserver.Server;
 
 import java.io.File;
-import java.util.concurrent.TimeUnit;
 
 import io.github.inflationx.calligraphy3.CalligraphyConfig;
 import io.github.inflationx.calligraphy3.CalligraphyInterceptor;
@@ -46,11 +39,7 @@ import me.jessyan.autosize.unit.Subunits;
  */
 public class App extends MultiDexApplication {
     private static App instance;
-    private static P2PClass p;
-    public static String burl;
-    private static String dashData;
     public static ViewPump viewPump = null;
-    private static Server server = null;
     private final Handler handler;
 
     public App() {
@@ -73,8 +62,6 @@ public class App extends MultiDexApplication {
         EpgUtil.init();
         // 初始化Web服务器(直播列表代理 + 手机扫码推送必须)
         ControlManager.init(this);
-        //初始化数据库(纯直播版不会打开库文件, 仅设置单例, 避免点播代码被调用时抛异常)
-        AppDataManager.init();
         LoadSir.beginBuilder()
                 .addCallback(new EmptyCallback())
                 .addCallback(new LoadingCallback())
@@ -120,18 +107,6 @@ public class App extends MultiDexApplication {
         }
     }
 
-    public static P2PClass getp2p() {
-        try {
-            if (p == null) {
-                p = new P2PClass(FileUtils.getExternalCachePath());
-            }
-            return p;
-        } catch (Exception e) {
-            LOG.e(e.toString());
-            return null;
-        }
-    }
-
 
     private void initParams() {
         // Hawk
@@ -170,45 +145,6 @@ public class App extends MultiDexApplication {
         if (!Hawk.contains(key)) {
             Hawk.put(key, value);
         }
-    }
-
-    @Override
-    public void onTerminate() {
-        super.onTerminate();
-        JsLoader.destroy();
-    }
-
-    public void setDashData(String data) {
-        dashData = data;
-    }
-
-    public String getDashData() {
-        return dashData;
-    }
-
-    public static void startWebserver() {
-        if (server != null) return;
-        server = AndServer
-                .webServer(instance)
-                .port(12345)
-                .timeout(60, TimeUnit.SECONDS)
-                .listener(new Server.ServerListener() {
-                    @Override
-                    public void onStarted() {
-
-                    }
-
-                    @Override
-                    public void onStopped() {
-
-                    }
-
-                    @Override
-                    public void onException(Exception e) {
-
-                    }
-                }).build();
-        server.startup();
     }
 
     public static void post(Runnable runnable) {

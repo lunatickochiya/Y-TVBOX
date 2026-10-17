@@ -8,7 +8,6 @@ import com.github.catvod.utils.Path;
 import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.util.StringUtils;
-import com.github.tvbox.osc.util.urlhttp.OkHttpUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.lzy.okgo.OkGo;
@@ -286,7 +285,7 @@ public class FileUtils {
                 }
                 response = OkGo.<String>get(str).headers(h).execute();
             } else {
-                response =OkGo.<String>get(str).headers("User-Agent", str.startsWith("https://gitcode.net/") ? UA.random() : "okhttp/3.15").execute();
+                response =OkGo.<String>get(str).headers("User-Agent", "okhttp/3.15").execute();
             }
             if (response.isSuccessful() && response.body() != null){
                 return new String(response.body().bytes(), "UTF-8");

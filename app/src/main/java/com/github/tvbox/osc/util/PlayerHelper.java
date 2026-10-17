@@ -15,7 +15,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import tv.danmaku.ijk.media.player.IjkMediaPlayer;
-import xyz.doikki.videoplayer.aliplayer.AliyunMediaPlayerFactory;
 import xyz.doikki.videoplayer.player.AndroidMediaPlayerFactory;
 import xyz.doikki.videoplayer.player.PlayerFactory;
 import xyz.doikki.videoplayer.player.VideoView;
@@ -75,7 +74,13 @@ public class PlayerHelper {
                 }
             };
         } else if (playerType == 3) {
-            playerFactory = AliyunMediaPlayerFactory.create();
+            // y-live: 点播的阿里播放器已移除, 非法值统一回退到 Exo
+            playerFactory = new PlayerFactory<EXOmPlayer>() {
+                @Override
+                public EXOmPlayer createPlayer(Context context) {
+                    return new EXOmPlayer(context);
+                }
+            };
         } else {
             playerFactory = AndroidMediaPlayerFactory.create();
         }
@@ -118,7 +123,12 @@ public class PlayerHelper {
                 }
             };
         } else if (playType == 3) {
-            playerFactory = AliyunMediaPlayerFactory.create();
+            playerFactory = new PlayerFactory<EXOmPlayer>() {
+                @Override
+                public EXOmPlayer createPlayer(Context context) {
+                    return new EXOmPlayer(context);
+                }
+            };
         } else {
             playerFactory = AndroidMediaPlayerFactory.create();
         }
@@ -150,7 +160,7 @@ public class PlayerHelper {
         } else if (playType == 2) {
             return "Exo";
         } else if (playType == 3) {
-            return "阿里";
+            return "Exo";
         } else if (playType == 10) {
             return "MX";
         } else if (playType == 11) {

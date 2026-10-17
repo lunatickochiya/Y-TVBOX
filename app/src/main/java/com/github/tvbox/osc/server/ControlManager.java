@@ -1,14 +1,8 @@
 package com.github.tvbox.osc.server;
 
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.os.Bundle;
-import android.text.TextUtils;
 
 import com.github.tvbox.osc.event.RefreshEvent;
-import com.github.tvbox.osc.receiver.DetailReceiver;
-import com.github.tvbox.osc.receiver.SearchReceiver;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.orhanobut.hawk.Hawk;
 
@@ -19,9 +13,7 @@ import java.io.IOException;
 import tv.danmaku.ijk.media.player.IjkMediaPlayer;
 
 /**
- * @author pj567
- * @date :2021/1/4
- * @description:
+ * 本地 HTTP 服务管理(y-live 只用于手机扫码配置直播源/EPG 源).
  */
 public class ControlManager {
     private static ControlManager instance;
@@ -59,25 +51,6 @@ public class ControlManager {
             mServer = new RemoteServer(RemoteServer.serverPort, mContext);
             mServer.setDataReceiver(new DataReceiver() {
                 @Override
-                public void onTextReceived(String text) {
-                    if (!TextUtils.isEmpty(text)) {
-                        Intent intent = new Intent();
-                        Bundle bundle = new Bundle();
-                        bundle.putString("title", text);
-                        intent.setAction(SearchReceiver.action);
-                        intent.setPackage(mContext.getPackageName());
-                        intent.setComponent(new ComponentName(mContext, SearchReceiver.class));
-                        intent.putExtras(bundle);
-                        mContext.sendBroadcast(intent);
-                    }
-                }
-
-                @Override
-                public void onApiReceived(String url) {
-                    EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_API_URL_CHANGE, url));
-                }
-
-                @Override
                 public void onLiveReceived(String url) {
                     EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_LIVE_URL_CHANGE, url));
                 }
@@ -85,31 +58,6 @@ public class ControlManager {
                 @Override
                 public void onEpgReceived(String url) {
                     EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_EPG_URL_CHANGE, url));
-                }
-
-                @Override
-                public void onProxysReceived(String url) {
-                    EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_PROXYS_CHANGE, url));
-                }
-
-                @Override
-                public void onPushReceived(String url) {
-                    EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_PUSH_URL, url));
-                }
-
-                @Override
-                public void onMirrorReceived(String id, String sourceKey) {
-                    if (!TextUtils.isEmpty(id) && !TextUtils.isEmpty(sourceKey)) {
-                        Intent intent = new Intent();
-                        Bundle bundle = new Bundle();
-                        bundle.putString("id", id);
-                        bundle.putString("sourceKey", sourceKey);
-                        intent.setAction(DetailReceiver.action);
-                        intent.setPackage(mContext.getPackageName());
-                        intent.setComponent(new ComponentName(mContext, DetailReceiver.class));
-                        intent.putExtras(bundle);
-                        mContext.sendBroadcast(intent);
-                    }
                 }
             });
             try {

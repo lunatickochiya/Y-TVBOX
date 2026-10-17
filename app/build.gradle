@@ -1,7 +1,6 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
-apply plugin: 'com.yanzhenjie.andserver'
 
 def static buildTime() {
     return new Date().format("yyyyMMdd_HHmm", TimeZone.getTimeZone("GMT+08:00"))
@@ -23,12 +22,6 @@ android {
         versionCode 1
         versionName "1.0.".concat(buildTime())
         multiDexEnabled true
-        //设置room的Schema的位置
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments = ["room.schemaLocation": "$projectDir/schemas".toString()]
-            }
-        }
     }
 
     packagingOptions {
@@ -85,11 +78,6 @@ android {
             minSdkVersion 21
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
-        python {
-            dimension = "mode"
-            minSdkVersion 21
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-python.pro'
-        }
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
@@ -98,15 +86,6 @@ android {
             def fileName = "Y-LIVE_${variant.buildType.name}-${flavorNames}.apk"
             outputFileName = fileName
         }
-    }
-
-    sourceSets {
-        // y-live 只有 normal(纯直播 Java 版) 与 python 两种模式:
-        //   std = X5Support 空实现, geckostub = GeckoSupport 空实现, normal = pyLoader 桩
-        normal.java.srcDir 'src/std/java'
-        normal.java.srcDir 'src/geckostub/java'
-        python.java.srcDir 'src/std/java'
-        python.java.srcDir 'src/geckostub/java'
     }
 
     compileOptions {
@@ -140,9 +119,6 @@ dependencies {
     api fileTree(dir: "libs", include: ['*.jar', '*.aar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     // for WebDAV
-    implementation('com.github.thegrizzlylabs:sardine-android:0.8') {
-        exclude group: 'com.squareup.okhttp3'
-    }
     implementation 'com.github.NanoHttpd.nanohttpd:nanohttpd:nanohttpd-project-2.3.1'
     implementation 'com.github.NanoHttpd.nanohttpd:nanohttpd:nanohttpd-websocket-2.3.1'
     implementation 'com.google.zxing:core:3.5.1'
@@ -151,11 +127,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-extensions:2.2.0'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'com.google.android.material:material:1.12.0'
-    implementation project(path: ':quickjs')
     // X5/Gecko 内核版已移除: y-live 是纯直播应用, 不做点播嗅探
-    kapt 'androidx.room:room-compiler:2.6.1'
-    implementation 'com.github.alidili:FlowLayout:v1.5'
-    implementation 'androidx.room:room-runtime:2.6.1'
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'com.squareup.okhttp3:okhttp:3.12.11'
     implementation 'com.squareup.okio:okio:3.3.0'
@@ -165,12 +137,8 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     kapt 'com.github.bumptech.glide:compiler:4.16.0'
     implementation 'me.jessyan:autosize:1.2.1'
-    implementation('com.thoughtworks.xstream:xstream:1.4.20') {
-        exclude group: 'xmlpull', module: 'xmlpull'
-    }
     implementation 'org.greenrobot:eventbus:3.3.1'
     implementation 'com.orhanobut:hawk:2.0.1'
-    implementation 'net.sourceforge.streamsupport:android-retrofuture:1.7.4'
     implementation 'androidx.annotation:annotation:1.8.2'
     implementation "androidx.media3:media3-exoplayer:1.3.1"
     implementation "androidx.media3:media3-ui:1.3.1"
@@ -183,32 +151,17 @@ dependencies {
 
 
 
-    implementation "com.aliyun.sdk.android:AliyunPlayer:5.5.2.0-full"
-    implementation 'com.alivc.conan:AlivcConan:0.9.5'
-    implementation 'xyz.doikki.android.dkplayer:dkplayer-ui:3.3.7'
-    implementation 'xyz.doikki.android.dkplayer:videocache:3.3.7'
 
     implementation 'com.lzy.net:okgo:3.0.4'
+    // BaseVideoController 等播放器 UI 基类来自 dkplayer-ui(点播用的 videocache 已移除)
+    implementation 'xyz.doikki.android.dkplayer:dkplayer-ui:3.3.7'
     implementation 'com.owen:tv-recyclerview:3.0.0'
     implementation 'com.blankj:utilcodex:1.31.0'
     implementation 'com.github.getActivity:XXPermissions:18.5'
-    implementation 'org.jsoup:jsoup:1.16.1'
-    implementation 'com.github.hedzr:android-file-chooser:v1.2.0-final'
     implementation 'commons-io:commons-io:2.13.0'
-    implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
 //    implementation files('libs/thunder.jar')
-    implementation 'org.apache.commons:commons-text:1.10.0'
-    implementation 'com.github.seven332:jcifs:1.3.19'
-    implementation 'org.conscrypt:conscrypt-android:2.5.2'
     implementation 'io.github.inflationx:viewpump:2.1.1'
     implementation 'io.github.inflationx:calligraphy3:3.1.1'
-    implementation 'com.yanzhenjie.andserver:api:2.1.12'
-    kapt 'com.yanzhenjie.andserver:processor:2.1.12'
-    implementation 'com.github.ctiao:DanmakuFlameMaster:0.9.25'
-    implementation('org.simpleframework:simple-xml:2.7.1') {
-        exclude group: 'stax', module: 'stax-api'
-        exclude group: 'xpp3', module: 'xpp3'
-    }
     configurations {
         configureEach {
             exclude group: 'xpp3', module: 'xpp3'

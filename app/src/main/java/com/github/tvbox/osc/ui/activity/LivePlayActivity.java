@@ -7,6 +7,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.os.Handler;
 import android.util.Base64;
 import android.view.KeyEvent;
@@ -75,7 +76,6 @@ import com.orhanobut.hawk.Hawk;
 import com.owen.tvrecyclerview.widget.TvRecyclerView;
 import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
 
-import org.apache.commons.lang3.StringUtils;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -2064,7 +2064,7 @@ public class LivePlayActivity extends BaseActivity {
         if (list.isEmpty()) {
             // y-live: 纯直播版不加载点播配置, 直接用「直播地址」加载频道列表
             String liveUrl = Hawk.get(HawkConfig.LIVE_URL, "");
-            if (StringUtils.isNotBlank(liveUrl)) {
+            if (!TextUtils.isEmpty(liveUrl)) {
                 reloadLiveSource(liveUrl);
             } else {
                 Toast.makeText(App.getInstance(), getString(R.string.act_live_play_empty_live_url), Toast.LENGTH_LONG).show();
@@ -2153,7 +2153,7 @@ public class LivePlayActivity extends BaseActivity {
         if (event.type == RefreshEvent.TYPE_EPG_URL_CHANGE) {
             // 手机网页推送过来的 EPG 地址: 保存 + 记入历史
             String url = event.obj == null ? "" : event.obj.toString().trim();
-            if (!StringUtils.isBlank(url)) {
+            if (!TextUtils.isEmpty(url)) {
                 Hawk.put(HawkConfig.EPG_URL, url);
                 ApiConfig.putEPGHistory(url);
             }
@@ -2166,7 +2166,7 @@ public class LivePlayActivity extends BaseActivity {
         if (event.type == RefreshEvent.TYPE_LIVE_URL_CHANGE) {
             // 手机网页/推送过来的直播地址(LivePlayActivity 是 y-live 唯一界面, 在这里直接生效)
             String url = event.obj == null ? "" : event.obj.toString().trim();
-            if (!StringUtils.isBlank(url)) {
+            if (!TextUtils.isEmpty(url)) {
                 Hawk.put(HawkConfig.LIVE_URL, url);
                 ApiConfig.putLiveHistory(url);
                 liveChannelGroupList.clear();
