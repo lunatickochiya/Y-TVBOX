@@ -23,6 +23,8 @@ android {
         targetSdkVersion 28
         versionCode 1
         versionName "1.0.".concat(buildTime())
+        // 「关于」里显示的编译时间(yyyyMMdd_HHmm, GMT+8)
+        buildConfigField "String", "BUILD_TIME", "\"${buildTime()}\""
         multiDexEnabled true
         //设置room的Schema的位置
         javaCompileOptions {
