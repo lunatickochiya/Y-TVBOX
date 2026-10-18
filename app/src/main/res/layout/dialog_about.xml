@@ -8,6 +8,22 @@
     android:padding="@dimen/vs_30">
 
     <TextView
+        android:id="@+id/tvVersionInfo"
+        android:layout_width="@dimen/vs_600"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/vs_20"
+        android:gravity="center"
+        android:lineSpacingExtra="@dimen/vs_10"
+        android:shadowColor="@color/color_000000_60"
+        android:shadowDx="0"
+        android:shadowDy="0"
+        android:shadowRadius="3"
+        android:textColor="@color/color_FFFFFF"
+        android:textSize="@dimen/ts_26"
+        android:textStyle="bold"
+        android:text="版本\n编译时间" />
+
+    <TextView
         android:layout_width="@dimen/vs_600"
         android:layout_height="wrap_content"
         android:lineSpacingExtra="@dimen/ts_50"
