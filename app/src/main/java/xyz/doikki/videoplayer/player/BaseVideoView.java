@@ -46,7 +46,7 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
 
     protected P mMediaPlayer;//播放器
 
-    /** 当前播放器实例(y-live: 用于查询首帧渲染状态等) */
+    /** The active player for output checks in the current playback attempt. */
     public P getPlayer() {
         return mMediaPlayer;
     }
@@ -303,6 +303,8 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
      * 开始准备播放（直接播放）
      */
     protected void startPrepare(boolean reset) {
+        mVideoSize[0] = 0;
+        mVideoSize[1] = 0;
         if (reset) {
             mMediaPlayer.reset();
             //重新设置option，media player reset之后，option会失效
@@ -377,6 +379,8 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
      * 释放播放器
      */
     public void release() {
+        mVideoSize[0] = 0;
+        mVideoSize[1] = 0;
         if (!isInIdleState()) {
             //释放播放器
             if (mMediaPlayer != null) {

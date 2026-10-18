@@ -12,6 +12,7 @@ import android.view.SurfaceHolder;
 import androidx.annotation.NonNull;
 import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.C;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
@@ -48,7 +49,16 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     protected ExoTrackNameProvider trackNameProvider;
     protected TrackSelectionArray mTrackSelections;
     private PlaybackParameters mSpeedPlaybackParameters;
-    private boolean mIsPreparing;
+    private final PlaybackOutputState mOutputState = new PlaybackOutputState(new PlaybackOutputState.Listener() {
+        @Override public void onPrepared() {
+            if (mPlayerEventListener != null) mPlayerEventListener.onPrepared();
+        }
+        @Override public void onRenderingStart() {
+            if (mPlayerEventListener != null && mMediaPlayer != null && mMediaPlayer.getPlayWhenReady()) {
+                mPlayerEventListener.onInfo(MEDIA_INFO_RENDERING_START, 0);
+            }
+        }
+    });
 
     private LoadControl mLoadControl;
     private DefaultRenderersFactory mRenderersFactory;
@@ -60,13 +70,6 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     private Map<String, String> headers;
     private long lastTotalRxBytes = 0;
     private long lastTimeStamp = 0;
-
-    /** y-live: 是否已经渲染出第一帧(用于检测"有声音没画面"的黑屏) */
-    private volatile boolean mFirstFrameRendered = false;
-
-    public boolean isFirstFrameRendered() {
-        return mFirstFrameRendered;
-    }
 
     private int retriedTimes = 0;
 
@@ -149,6 +152,27 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
         return mTrackSelector;
     }
 
+    /** True only after a video frame was rendered in the current preparation attempt. */
+    public boolean isFirstFrameRendered() {
+        return mOutputState.isFirstFrameRendered();
+    }
+
+    public boolean hasVideoTrack() {
+        // An unsupported/unselected video track still needs the black-screen watchdog.
+        return mMediaPlayer != null && mMediaPlayer.getCurrentTracks().containsType(C.TRACK_TYPE_VIDEO);
+    }
+
+    /** View-level PLAYING can precede Exo readiness when resuming during buffering. */
+    public boolean shouldCheckVideoOutput() {
+        return mMediaPlayer != null && mOutputState.shouldCheckVideoOutput(
+                mMediaPlayer.getPlaybackState() == Player.STATE_READY,
+                mMediaPlayer.getPlayWhenReady(), hasVideoTrack());
+    }
+
+    public boolean isReadyForPlayback() {
+        return mMediaPlayer != null && mMediaPlayer.getPlaybackState() == Player.STATE_READY;
+    }
+
     @Override
     public void setDataSource(String path, Map<String, String> headers) {
         this.path = path;
@@ -192,18 +216,18 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
         if (mSpeedPlaybackParameters != null) {
             mMediaPlayer.setPlaybackParameters(mSpeedPlaybackParameters);
         }
-        mIsPreparing = true;
+        mOutputState.prepare();
         mMediaPlayer.setMediaSource(mMediaSource);
         mMediaPlayer.prepare();
     }
 
     @Override
     public void reset() {
+        mOutputState.reset();
         if (mMediaPlayer != null) {
             mMediaPlayer.stop();
             mMediaPlayer.clearMediaItems();
-            mMediaPlayer.setVideoSurface(null);
-            mIsPreparing = false;
+            // RenderView owns surface attachment. replay() has already attached its new view.
         }
     }
 
@@ -232,6 +256,7 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
 
     @Override
     public void release() {
+        mOutputState.reset();
         if (mMediaPlayer != null) {
             mMediaPlayer.removeListener(this);
             mMediaPlayer.release();
@@ -239,7 +264,6 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
         }
         lastTotalRxBytes = 0;
         lastTimeStamp = 0;
-        mIsPreparing = false;
         mSpeedPlaybackParameters = null;
     }
 
@@ -358,18 +382,17 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
 
     @Override
     public void onRenderedFirstFrame() {
-        mFirstFrameRendered = true;
-        Log.w("YLive", "首帧已渲染");
+        if (mMediaPlayer == null) return;
+        mOutputState.firstFrame();
     }
 
     @Override
     public void onPlaybackStateChanged(int playbackState) {
-        if (mPlayerEventListener == null) return;
-        if (mIsPreparing) {
+        if (mMediaPlayer == null || mPlayerEventListener == null || !mOutputState.isActive()) return;
+        if (mOutputState.isPreparing()) {
             if (playbackState == Player.STATE_READY) {
-                mPlayerEventListener.onPrepared();
-                mPlayerEventListener.onInfo(MEDIA_INFO_RENDERING_START, 0);
-                mIsPreparing = false;
+                // Audio-only playback has no video frame callback; video waits for real output.
+                mOutputState.ready(hasVideoTrack());
             }
             return;
         }
@@ -390,6 +413,8 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
 
     @Override
     public void onPlayerError(@NonNull PlaybackException error) {
+        if (mMediaPlayer == null || !mOutputState.isActive()) return;
+        mOutputState.reset();
         errorCode = error.errorCode;
         Log.e("tag--", "" + error.errorCode);
         String proxyServer = Hawk.get(HawkConfig.PROXY_SERVER, "");
@@ -436,7 +461,7 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
 
     @Override
     public void onVideoSizeChanged(@NonNull VideoSize videoSize) {
-        if (mPlayerEventListener != null) {
+        if (mMediaPlayer != null && mPlayerEventListener != null && mOutputState.isActive()) {
             mPlayerEventListener.onVideoSizeChanged(videoSize.width, videoSize.height);
             if (videoSize.unappliedRotationDegrees > 0) {
                 mPlayerEventListener.onInfo(MEDIA_INFO_VIDEO_ROTATION_CHANGED, videoSize.unappliedRotationDegrees);
