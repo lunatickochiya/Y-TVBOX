@@ -41,6 +41,7 @@ import com.github.tvbox.osc.bean.LiveSettingGroup;
 import com.github.tvbox.osc.bean.LiveSettingItem;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.fcc.FccController;
+import com.github.tvbox.osc.player.EXOmPlayer;
 import com.github.tvbox.osc.player.controller.LiveController;
 import com.github.tvbox.osc.ui.adapter.ApiHistoryDialogAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveChannelGroupAdapter;
@@ -60,6 +61,8 @@ import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.LiveChannelFilter;
 import com.github.tvbox.osc.util.HawkUtils;
+import com.github.tvbox.osc.util.PlaybackTaskQueue;
+import com.github.tvbox.osc.util.PlaybackRecovery;
 import com.github.tvbox.osc.util.JavaUtil;
 import com.github.tvbox.osc.util.XmltvEpgUtil;
 import com.github.tvbox.osc.util.live.TxtSubscribe;
@@ -169,7 +172,18 @@ public class LivePlayActivity extends BaseActivity {
     // Misc Variables
     public String epgStringAddress = "";
     SimpleDateFormat timeFormat = new SimpleDateFormat("yyyy-MM-dd");
-    private final Handler mHandler = new Handler();
+    private final Handler uiHandler = new Handler();
+    private final PlaybackTaskQueue mHandler = new PlaybackTaskQueue(new PlaybackTaskQueue.Scheduler() {
+        @Override public void postDelayed(Runnable task, long delayMs) { uiHandler.postDelayed(task, delayMs); }
+        @Override public void removeCallbacks(Runnable task) { uiHandler.removeCallbacks(task); }
+        @Override public void clear() { uiHandler.removeCallbacksAndMessages(null); }
+    });
+    private final SimpleDateFormat clockFormat = new SimpleDateFormat("HH:mm:ss", Locale.ENGLISH);
+    private boolean destroyed;
+    private boolean playbackPaused;
+    private boolean waitingForConnection;
+    private boolean playbackFailed;
+    private final Object liveListRequestTag = new Object();
     private static LiveChannelItem channel_Name = null;
     private static final Hashtable hsEpg = new Hashtable();
     private TextView tvTime;
@@ -230,6 +244,7 @@ public class LivePlayActivity extends BaseActivity {
      * hands over to multicast; otherwise the original URL is used unchanged.
      */
     private void playLiveUrl(String url) {
+        if (!isPlaybackAvailable()) return;
         if (fccController == null) fccController = FccController.get();
         String playUrl = url;
         if (!fccBypassOnce) {
@@ -256,6 +271,7 @@ public class LivePlayActivity extends BaseActivity {
 
     /** Play a URL directly (catch-up/time-shift must not be FCC intercepted). */
     private void playDirectUrl(String url) {
+        if (!isPlaybackAvailable()) return;
         if (fccController == null) fccController = FccController.get();
         fccController.stop();
         mVideoView.setUrl(url, setPlayHeaders(url));
@@ -289,6 +305,7 @@ public class LivePlayActivity extends BaseActivity {
 
         fccController = FccController.get();
         fccController.setListener((sourceUrl, reason) -> mHandler.post(() -> {
+            if (!isPlaybackRecoveryAllowed()) return;
             if (sourceUrl == null || currentLiveChannelItem == null) return;
             if (!sourceUrl.equals(currentLiveChannelItem.getUrl())) return;
             Toast.makeText(App.getInstance(), "FCC 不可用，回退原始播放", Toast.LENGTH_SHORT).show();
@@ -558,8 +575,10 @@ public class LivePlayActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        playbackPaused = false;
         if (mVideoView != null) {
             mVideoView.resume();
+            restorePlaybackChecks();
         }
     }
 
@@ -572,6 +591,8 @@ public class LivePlayActivity extends BaseActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        playbackPaused = !(supportsPiPMode() && isInPictureInPictureMode());
+        if (playbackPaused) cancelPlaybackChecks();
         if (mVideoView != null) {
             if (supportsPiPMode()) {
                 if (isInPictureInPictureMode()) {
@@ -603,6 +624,11 @@ public class LivePlayActivity extends BaseActivity {
 
     @Override
     protected void onDestroy() {
+        destroyed = true;
+        mHandler.close();
+        OkGo.getInstance().cancelTag(this);
+        OkGo.getInstance().cancelTag(liveListRequestTag);
+        EventBus.getDefault().unregister(this);
         super.onDestroy();
         FccController controller = fccController != null ? fccController : FccController.get();
         controller.setListener(null);
@@ -611,6 +637,32 @@ public class LivePlayActivity extends BaseActivity {
             mVideoView.release();
             mVideoView = null;
         }
+    }
+
+    private boolean isPlaybackAvailable() {
+        return !destroyed && !isFinishing() && mVideoView != null;
+    }
+
+    private boolean isPlaybackRecoveryAllowed() {
+        return isPlaybackAvailable() && !playbackPaused;
+    }
+
+    private void cancelPlaybackChecks() {
+        mHandler.removeCallbacks(mCheckVideoOutputRun);
+        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
+        mHandler.removeCallbacks(mConnectTimeoutReplayRun);
+    }
+
+    private void restorePlaybackChecks() {
+        if (!isPlaybackAvailable() || mVideoView.getPlayer() == null) return;
+        boolean ready = !waitingForConnection && !playbackFailed;
+        if (mVideoView.getPlayer() instanceof EXOmPlayer) {
+            ready = ((EXOmPlayer) mVideoView.getPlayer()).isReadyForPlayback();
+        }
+        PlaybackRecovery.schedule(mHandler, mConnectTimeoutChangeSourceRun, mConnectTimeoutReplayRun,
+                isPlaybackRecoveryAllowed(), ready, playbackFailed, Hawk.get(HawkConfig.LIVE_CONNECT_TIMEOUT, 2));
+        if (ready) scheduleVideoOutputCheck();
+        else mHandler.removeCallbacks(mCheckVideoOutputRun);
     }
 
     private void showChannelList() {
@@ -799,7 +851,7 @@ public class LivePlayActivity extends BaseActivity {
                 mEpgInfoGridView.setSelection(i);
                 epgListAdapter.setSelectedEpgIndex(i);
                 int finalI = i;
-                mEpgInfoGridView.post(new Runnable() {
+                mHandler.post(new Runnable() {
                     @Override
                     public void run() {
                         mEpgInfoGridView.smoothScrollToPosition(finalI);
@@ -820,9 +872,8 @@ public class LivePlayActivity extends BaseActivity {
     private final Runnable tv_sys_timeRunnable = new Runnable() {
         @Override
         public void run() {
-            Date date = new Date();
-            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.ENGLISH);
-            tv_sys_time.setText(timeFormat.format(date));
+            if (!isPlaybackAvailable()) return;
+            tv_sys_time.setText(clockFormat.format(new Date()));
             mHandler.postDelayed(this, 1000);
 
             // takagen99 : Update SeekBar
@@ -894,6 +945,7 @@ public class LivePlayActivity extends BaseActivity {
     }
 
     public void getEpg(Date date) {
+        if (!isPlaybackAvailable() || channel_Name == null) return;
 
         OkGo.getInstance().cancelTag(this);
 
@@ -925,6 +977,7 @@ public class LivePlayActivity extends BaseActivity {
             XmltvEpgUtil.query(epgStringAddress, channelName, epgTagName, date, new XmltvEpgUtil.Callback() {
                 @Override
                 public void onResult(List<Epginfo> list) {
+                    if (!isPlaybackAvailable() || channel_Name == null) return;
                     if (epgChannelName != null && !epgChannelName.equals(channel_Name.getChannelName()))
                         return;
                     ArrayList arrayList = new ArrayList(list);
@@ -952,6 +1005,7 @@ public class LivePlayActivity extends BaseActivity {
                 .execute(new StringCallback() {
             @Override
             public void onSuccess(Response<String> response) {
+                if (!isPlaybackAvailable() || channel_Name == null) return;
                 String paramString = response.body();
                 ArrayList arrayList = new ArrayList();
 
@@ -985,6 +1039,7 @@ public class LivePlayActivity extends BaseActivity {
             }
 
             public void onFailure(int i, String str) {
+                if (!isPlaybackAvailable() || channel_Name == null) return;
                 if (channelName != null && !channelName.equals(channel_Name.getChannelName()))
                     return;
                 boolean hasData = epgdata != null && !epgdata.isEmpty()
@@ -997,7 +1052,8 @@ public class LivePlayActivity extends BaseActivity {
     }
 
     private boolean replayChannel() {
-        if (mVideoView == null) return true;
+        if (!isPlaybackRecoveryAllowed()) return true;
+        cancelPlaybackChecks();
         mVideoView.release();
         currentLiveChannelItem = getLiveChannels(currentChannelGroupIndex).get(currentLiveChannelIndex);
         Hawk.put(HawkConfig.LIVE_CHANNEL, currentLiveChannelItem.getChannelName());
@@ -1028,7 +1084,8 @@ public class LivePlayActivity extends BaseActivity {
             showChannelInfo();
             return true;
         }
-        if (mVideoView == null) return true;
+        if (!isPlaybackAvailable()) return true;
+        cancelPlaybackChecks();
         mVideoView.release();
         // 换台: 重置解码回退与黑屏检查
         liveDecodeFallbackTimes = 0;
@@ -1192,7 +1249,7 @@ public class LivePlayActivity extends BaseActivity {
      * @return true 表示已经触发回退
      */
     private boolean tryDecodeFallback(String reason) {
-        if (liveDecodeFallbackTimes > 0 || currentLiveChannelItem == null) {
+        if (!isPlaybackRecoveryAllowed() || liveDecodeFallbackTimes > 0 || currentLiveChannelItem == null) {
             return false;
         }
         int cur = livePlayerManager.getLivePlayerType();
@@ -1205,6 +1262,7 @@ public class LivePlayActivity extends BaseActivity {
             return false;
         }
         liveDecodeFallbackTimes = 1;
+        cancelPlaybackChecks();
         Toast.makeText(mContext, "该频道" + reason + ", 已自动切换为「" + decoderName(target) + "」", Toast.LENGTH_LONG).show();
         android.util.Log.i("YLive", "自动回退解码: " + decoderName(cur) + " -> " + decoderName(target) + " (" + reason + ")");
         mVideoView.release();
@@ -1218,13 +1276,31 @@ public class LivePlayActivity extends BaseActivity {
     private final Runnable mCheckVideoOutputRun = new Runnable() {
         @Override
         public void run() {
-            if (currentLiveChannelItem == null) return;
+            if (!isPlaybackRecoveryAllowed() || currentLiveChannelItem == null) return;
+            if (mVideoView.getPlayer() instanceof EXOmPlayer) {
+                EXOmPlayer exoPlayer = (EXOmPlayer) mVideoView.getPlayer();
+                if (!exoPlayer.shouldCheckVideoOutput()) return;
+                tryDecodeFallback("只有声音没有画面");
+                return;
+            }
             int[] size = mVideoView.getVideoSize();
             if (size == null || size.length < 2 || size[0] <= 0 || size[1] <= 0) {
                 tryDecodeFallback("只有声音没有画面");
             }
         }
     };
+
+    private void scheduleVideoOutputCheck() {
+        mHandler.removeCallbacks(mCheckVideoOutputRun);
+        if (!isPlaybackRecoveryAllowed()) return;
+        int decoder = livePlayerManager.getLivePlayerType();
+        if (decoder != 2 && decoder != 3) return;
+        if (mVideoView.getPlayer() instanceof EXOmPlayer) {
+            EXOmPlayer exoPlayer = (EXOmPlayer) mVideoView.getPlayer();
+            if (!exoPlayer.shouldCheckVideoOutput()) return;
+        }
+        mHandler.postDelayed(mCheckVideoOutputRun, 6000);
+    }
 
     /** 直播设置-分组开关(一键开关整个分组, 如关闭 4K 分组) */
     private void showGroupToggleDialog() {
@@ -1366,12 +1442,18 @@ public class LivePlayActivity extends BaseActivity {
 
             @Override
             public void playStateChanged(int playState) {
+                if (!isPlaybackAvailable()) return;
                 android.util.Log.w("YLive", "播放状态: " + playState);
                 switch (playState) {
                     case VideoView.STATE_IDLE:
                     case VideoView.STATE_PAUSED:
+                        cancelPlaybackChecks();
                         break;
                     case VideoView.STATE_PREPARED:
+                        waitingForConnection = false;
+                        playbackFailed = false;
+                        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
+                        mHandler.removeCallbacks(mConnectTimeoutReplayRun);
                         // takagen99 : Retrieve Video Resolution & Retrieve Video Duration
                         if (mVideoView.getVideoSize().length >= 2) {
                             tv_size.setText(mVideoView.getVideoSize()[0] + " x " + mVideoView.getVideoSize()[1]);
@@ -1389,45 +1471,38 @@ public class LivePlayActivity extends BaseActivity {
                             isVOD = false;
                             llSeekBar.setVisibility(View.GONE);
                         }
+                        // Exo readiness can precede its first video frame, so start the watchdog here.
+                        scheduleVideoOutputCheck();
                         break;
                     case VideoView.STATE_BUFFERED:
+                        waitingForConnection = false;
+                        playbackFailed = false;
                         currentLiveChangeSourceTimes = 0;
                         mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
                         mHandler.removeCallbacks(mConnectTimeoutReplayRun);
+                        scheduleVideoOutputCheck();
                         break;
                     case VideoView.STATE_PLAYING:
                         currentLiveChangeSourceTimes = 0;
-                        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
-                        mHandler.removeCallbacks(mConnectTimeoutReplayRun);
-                        // 6 秒后检查是否黑屏(软解解不出来时会只有声音没画面) -> 自动回退硬解
-                        mHandler.removeCallbacks(mCheckVideoOutputRun);
-                        mHandler.postDelayed(mCheckVideoOutputRun, 6000);
+                        restorePlaybackChecks();
                         break;
                     case VideoView.STATE_ERROR:
                     case VideoView.STATE_PLAYBACK_COMPLETED:
-                        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
-                        mHandler.removeCallbacks(mConnectTimeoutReplayRun);
+                        playbackFailed = true;
+                        cancelPlaybackChecks();
+                        if (!isPlaybackRecoveryAllowed()) break;
                         // 软解报错时先自动回退到硬解, 失败再走原来的超时换源逻辑
                         if (tryDecodeFallback("软解播放失败")) {
                             break;
                         }
-                        if (Hawk.get(HawkConfig.LIVE_CONNECT_TIMEOUT, 2) == 0) {
-                            //缓冲30s重新播放
-                            mHandler.postDelayed(mConnectTimeoutReplayRun, 30 * 1000L);
-                        } else {
-                            mHandler.post(mConnectTimeoutChangeSourceRun);
-                        }
+                        restorePlaybackChecks();
                         break;
                     case VideoView.STATE_PREPARING:
                     case VideoView.STATE_BUFFERING:
-                        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
-                        mHandler.removeCallbacks(mConnectTimeoutReplayRun);
-                        if (Hawk.get(HawkConfig.LIVE_CONNECT_TIMEOUT, 2) == 0) {
-                            //缓冲30s重新播放
-                            mHandler.postDelayed(mConnectTimeoutReplayRun, 30 * 1000L);
-                        } else {
-                            mHandler.postDelayed(mConnectTimeoutChangeSourceRun, (Hawk.get(HawkConfig.LIVE_CONNECT_TIMEOUT, 2)) * 5000L);
-                        }
+                        waitingForConnection = true;
+                        playbackFailed = false;
+                        cancelPlaybackChecks();
+                        restorePlaybackChecks();
                         break;
                 }
             }
@@ -1465,6 +1540,7 @@ public class LivePlayActivity extends BaseActivity {
     private final Runnable mConnectTimeoutChangeSourceRun = new Runnable() {
         @Override
         public void run() {
+            if (!isPlaybackRecoveryAllowed() || !isCurrentLiveChannelValid()) return;
             currentLiveChangeSourceTimes++;
             if (currentLiveChannelItem.getSourceNum() == currentLiveChangeSourceTimes) {
                 currentLiveChangeSourceTimes = 0;
@@ -1479,6 +1555,7 @@ public class LivePlayActivity extends BaseActivity {
     private final Runnable mConnectTimeoutReplayRun = new Runnable() {
         @Override
         public void run() {
+            if (!isPlaybackRecoveryAllowed() || !isCurrentLiveChannelValid()) return;
             replayChannel();
         }
     };
@@ -2118,6 +2195,7 @@ public class LivePlayActivity extends BaseActivity {
 
     //加载列表
     public void loadProxyLives(String url) {
+        if (!isPlaybackAvailable()) return;
         try {
             Uri parsedUrl = Uri.parse(url);
             url = new String(Base64.decode(parsedUrl.getQueryParameter("ext"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP), "UTF-8");
@@ -2132,7 +2210,7 @@ public class LivePlayActivity extends BaseActivity {
             return;
         }
         showLoading();
-        OkGo.<String>get(url).execute(new AbsCallback<String>() {
+        OkGo.<String>get(url).tag(liveListRequestTag).execute(new AbsCallback<String>() {
 
             @Override
             public String convertResponse(okhttp3.Response response) throws Throwable {
@@ -2141,6 +2219,7 @@ public class LivePlayActivity extends BaseActivity {
 
             @Override
             public void onSuccess(Response<String> response) {
+                if (!isPlaybackAvailable()) return;
                 JsonArray livesArray;
                 LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap = new LinkedHashMap<>();
                 HashMap<String, String> catchupMap = new HashMap<>();
@@ -2171,6 +2250,7 @@ public class LivePlayActivity extends BaseActivity {
             @Override
             public void onError(Response<String> response) {
                 super.onError(response);
+                if (!isPlaybackAvailable()) return;
                 Toast.makeText(App.getInstance(), getString(R.string.act_live_play_network_error), Toast.LENGTH_LONG).show();
                 finish();
             }
@@ -2179,6 +2259,7 @@ public class LivePlayActivity extends BaseActivity {
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void refresh(RefreshEvent event) {
+        if (!isPlaybackAvailable()) return;
         if (event.type == RefreshEvent.TYPE_EPG_URL_CHANGE) {
             epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
             if (channel_Name != null) {
@@ -2298,9 +2379,8 @@ public class LivePlayActivity extends BaseActivity {
     private final Runnable mUpdateTimeRun = new Runnable() {
         @Override
         public void run() {
-            Date day = new Date();
-            SimpleDateFormat df = new SimpleDateFormat("HH:mm:ss");
-            tvTime.setText(df.format(day));
+            if (!isPlaybackAvailable()) return;
+            tvTime.setText(clockFormat.format(new Date()));
             mHandler.postDelayed(this, 1000);
         }
     };

@@ -17,6 +17,8 @@ import xyz.doikki.videoplayer.player.VideoView;
 public class LivePlayerManager {
     JSONObject defaultPlayerConfig = new JSONObject();
     JSONObject currentPlayerConfig;
+    // User configuration stays separate from a temporary decoder fallback.
+    private JSONObject savedPlayerConfig;
 
     public void init(VideoView videoView) {
         try {
@@ -44,20 +46,19 @@ public class LivePlayerManager {
 
     public void getDefaultLiveChannelPlayer(VideoView videoView) {
         PlayerHelper.updateCfg(videoView, defaultPlayerConfig);
-        try {
-            currentPlayerConfig = new JSONObject(defaultPlayerConfig.toString());
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+        currentPlayerConfig = copyConfig(defaultPlayerConfig);
+        savedPlayerConfig = copyConfig(defaultPlayerConfig);
     }
 
     public void getLiveChannelPlayer(VideoView videoView, String channelName) {
         JSONObject playerConfig = Hawk.get(channelName, null);
         if (playerConfig == null) {
+            savedPlayerConfig = copyConfig(defaultPlayerConfig);
             if (!currentPlayerConfig.toString().equals(defaultPlayerConfig.toString()))
                 getDefaultLiveChannelPlayer(videoView);
             return;
         }
+        savedPlayerConfig = copyConfig(playerConfig);
         if (playerConfig.toString().equals(currentPlayerConfig.toString()))
             return;
 
@@ -119,15 +120,11 @@ public class LivePlayerManager {
     }
 
     public void changeLivePlayerType(VideoView videoView, int playerType, String channelName) {
-        JSONObject playerConfig = currentPlayerConfig;
+        JSONObject playerConfig = copyConfig(currentPlayerConfig);
         applyPlayerType(playerConfig, playerType);
         PlayerHelper.updateCfg(videoView, playerConfig);
-
-        if (playerConfig.toString().equals(defaultPlayerConfig.toString()))
-            Hawk.delete(channelName);
-        else
-            Hawk.put(channelName, playerConfig);
-
+        savedPlayerConfig = copyConfig(playerConfig);
+        saveChannelConfig(channelName, savedPlayerConfig);
         currentPlayerConfig = playerConfig;
     }
 
@@ -183,18 +180,27 @@ public class LivePlayerManager {
 
     public void changeLivePlayerScale(@NonNull VideoView videoView, int playerScale, String channelName){
         videoView.setScreenScaleType(playerScale);
-
-        JSONObject playerConfig = currentPlayerConfig;
+        JSONObject playerConfig = copyConfig(savedPlayerConfig);
         try {
             playerConfig.put("sc", playerScale);
+            currentPlayerConfig.put("sc", playerScale);
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        if (playerConfig.toString().equals(defaultPlayerConfig.toString()))
-            Hawk.delete(channelName);
-        else
-            Hawk.put(channelName, playerConfig);
+        savedPlayerConfig = playerConfig;
+        saveChannelConfig(channelName, playerConfig);
+    }
 
-        currentPlayerConfig = playerConfig;
+    private void saveChannelConfig(String channelName, JSONObject playerConfig) {
+        if (playerConfig.toString().equals(defaultPlayerConfig.toString())) Hawk.delete(channelName);
+        else Hawk.put(channelName, playerConfig);
+    }
+
+    private JSONObject copyConfig(JSONObject playerConfig) {
+        try {
+            return new JSONObject(playerConfig.toString());
+        } catch (JSONException e) {
+            throw new IllegalStateException("Invalid live player configuration", e);
+        }
     }
 }
