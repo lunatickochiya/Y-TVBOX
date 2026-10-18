@@ -1016,6 +1016,9 @@ public class LivePlayActivity extends BaseActivity {
         }
         if (mVideoView == null) return true;
         mVideoView.release();
+        // 换台: 重置解码回退与黑屏检查
+        liveDecodeFallbackTimes = 0;
+        mHandler.removeCallbacks(mCheckVideoOutputRun);
         if (!changeSource) {
             currentChannelGroupIndex = channelGroupIndex;
             currentLiveChannelIndex = liveChannelIndex;
@@ -1153,6 +1156,61 @@ public class LivePlayActivity extends BaseActivity {
                 });
         dialog.show();
     }
+
+    // 软解失败自动回退硬解(每频道最多回退一次)
+    private int liveDecodeFallbackTimes = 0;
+
+    /** 「播放解码」菜单下标对应的名字 */
+    private String decoderName(int index) {
+        switch (index) {
+            case 1: return "ijk硬解";
+            case 2: return "ijk软解";
+            case 3: return "exo软解";
+            case 4: return "exo硬解";
+            default: return "系统";
+        }
+    }
+
+    /**
+     * 软解播不出来(报错/只有声音没有画面)时, 自动回退到硬解试一次:
+     * exo软解 -> exo硬解, ijk软解 -> ijk硬解; 只临时生效, 不写进频道记忆.
+     *
+     * @return true 表示已经触发回退
+     */
+    private boolean tryDecodeFallback(String reason) {
+        if (liveDecodeFallbackTimes > 0 || currentLiveChannelItem == null) {
+            return false;
+        }
+        int cur = livePlayerManager.getLivePlayerType();
+        int target;
+        if (cur == 3) {
+            target = 4;
+        } else if (cur == 2) {
+            target = 1;
+        } else {
+            return false;
+        }
+        liveDecodeFallbackTimes = 1;
+        Toast.makeText(mContext, "该频道" + reason + ", 已自动切换为「" + decoderName(target) + "」", Toast.LENGTH_LONG).show();
+        android.util.Log.i("YLive", "自动回退解码: " + decoderName(cur) + " -> " + decoderName(target) + " (" + reason + ")");
+        mVideoView.release();
+        livePlayerManager.changeLivePlayerTypeTemp(mVideoView, target);
+        playLiveUrl(currentLiveChannelItem.getUrl());
+        mVideoView.start();
+        return true;
+    }
+
+    /** 起播后检查是否只有声音没有画面(软解解不出来时会黑屏但不报错) */
+    private final Runnable mCheckVideoOutputRun = new Runnable() {
+        @Override
+        public void run() {
+            if (currentLiveChannelItem == null) return;
+            int[] size = mVideoView.getVideoSize();
+            if (size == null || size.length < 2 || size[0] <= 0 || size[1] <= 0) {
+                tryDecodeFallback("只有声音没有画面");
+            }
+        }
+    };
 
     /** 直播设置-分组开关(一键开关整个分组, 如关闭 4K 分组) */
     private void showGroupToggleDialog() {
@@ -1318,15 +1376,26 @@ public class LivePlayActivity extends BaseActivity {
                         }
                         break;
                     case VideoView.STATE_BUFFERED:
+                        currentLiveChangeSourceTimes = 0;
+                        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
+                        mHandler.removeCallbacks(mConnectTimeoutReplayRun);
+                        break;
                     case VideoView.STATE_PLAYING:
                         currentLiveChangeSourceTimes = 0;
                         mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
                         mHandler.removeCallbacks(mConnectTimeoutReplayRun);
+                        // 6 秒后检查是否黑屏(软解解不出来时会只有声音没画面) -> 自动回退硬解
+                        mHandler.removeCallbacks(mCheckVideoOutputRun);
+                        mHandler.postDelayed(mCheckVideoOutputRun, 6000);
                         break;
                     case VideoView.STATE_ERROR:
                     case VideoView.STATE_PLAYBACK_COMPLETED:
                         mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
                         mHandler.removeCallbacks(mConnectTimeoutReplayRun);
+                        // 软解报错时先自动回退到硬解, 失败再走原来的超时换源逻辑
+                        if (tryDecodeFallback("软解播放失败")) {
+                            break;
+                        }
                         if (Hawk.get(HawkConfig.LIVE_CONNECT_TIMEOUT, 2) == 0) {
                             //缓冲30s重新播放
                             mHandler.postDelayed(mConnectTimeoutReplayRun, 30 * 1000L);
@@ -1865,6 +1934,8 @@ public class LivePlayActivity extends BaseActivity {
                 break;
             case 2://播放解码
                 mVideoView.release();
+                liveDecodeFallbackTimes = 0;
+                mHandler.removeCallbacks(mCheckVideoOutputRun);
                 livePlayerManager.changeLivePlayerType(mVideoView, position, currentLiveChannelItem.getChannelName());
                 playLiveUrl(currentLiveChannelItem.getUrl());
                 mVideoView.start();
