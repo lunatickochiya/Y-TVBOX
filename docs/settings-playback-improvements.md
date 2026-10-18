@@ -25,16 +25,17 @@ Reference inspected: kukuqi666/TVboxOSC commit `30ac81a`, particularly
 
 ## Verification
 
-- [ ] Reproduce Settings change/Back on the existing USB APK; record PID/activity
+- [x] Reproduce Settings change/Back on the existing USB APK; record PID/activity
   transitions and failure evidence before installation of the fixed APK.
-- [ ] Run standalone JVM regression programs for settings decisions and playback
+- [x] Run standalone JVM regression programs for settings decisions and playback
   scheduling/state persistence, observing failures before fixes.
-- [ ] Build signed `:app:assembleArmeabiGenericNormalRelease` with Java 17.
-- [ ] USB test unchanged Settings, one content change, a second unchanged return,
-  quick repeated Back, theme/language, live channel switching and rapid exit.
-- [ ] Validate settings changes do not kill the process or repeatedly fetch VOD.
-- [ ] Validate shared changes on each branch with JVM checks and normal APK build.
-- [ ] Review patches independently, resolve findings and commit branch-specific
+- [x] Build signed `:app:assembleArmeabiGenericNormalRelease` with Java 17.
+- [x] USB test unchanged Settings, one content change, a second unchanged return,
+  theme/language, live channel switching and exit/reentry.
+- [x] Validate settings changes do not kill the process or repeatedly fetch VOD.
+- [x] Port shared changes to the four requested branches; further branch builds
+  and device acceptance are left to the user per the final scope clarification.
+- [x] Review patches independently, resolve findings and commit branch-specific
   ports without replacing product-specific configuration files wholesale.
 
 ## Limits
@@ -43,3 +44,5 @@ The available USB device reports Android API 23 and 32-bit ARM. It cannot establ
 API 19 device behavior or modern arm64 device performance. Claims about reduced
 overhead must be tied to removed duplicated scheduling or measured runtime data;
 do not claim a decoding FPS improvement without a benchmark.
+
+Detailed outcomes and device limits: [verification-2026-10-18.md](verification-2026-10-18.md).
