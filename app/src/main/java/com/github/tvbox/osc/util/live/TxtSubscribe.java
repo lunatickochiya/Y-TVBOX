@@ -50,8 +50,28 @@ public class TxtSubscribe {
                     String catchupSource = null;
                     Matcher catchupMatcher = CATCHUP_SOURCE_PATTERN.matcher(line);
                     if (catchupMatcher.find()) catchupSource = catchupMatcher.group(1);
-                    // 此时再读取一行，就是对应的 url 链接了
-                    String url = bufferedReader.readLine().trim();
+                    // 此时再往下读, 直到读到非空且不是 # 开头的行, 才是真正的 url;
+                    // 常见列表里 #EXTINF 和 url 之间会夹空行、#EXTVLCOPT/#KODIPROP(播放器参数)、
+                    // #EXTGRP(分组) 等行, 老逻辑直接取下一行会把空行/参数行当成地址(导致黑屏/无地址)。
+                    boolean groupFromExtGrp = false;
+                    String url = null;
+                    while ((line = bufferedReader.readLine()) != null) {
+                        String trimmed = line.trim();
+                        if (trimmed.isEmpty()) continue;
+                        if (trimmed.startsWith("#EXTGRP")) {
+                            // #EXTGRP:分组名 (只有 #EXTINF 里没写 group-title 时才用)
+                            if (!groupFromExtGrp && (group == null || "未分组".equals(group))) {
+                                group = trimmed.substring("#EXTGRP".length()).replace(":", "").trim();
+                                if (group.isEmpty()) group = "未分组";
+                                groupFromExtGrp = true;
+                            }
+                            continue;
+                        }
+                        if (trimmed.startsWith("#")) continue;   // #EXTVLCOPT/#KODIPROP/其它注释行
+                        url = trimmed;
+                        break;
+                    }
+                    if (url == null || url.isEmpty()) continue;   // 没有地址的条目直接跳过
                     if (linkedHashMap.containsKey(group)) {
                         channelTemp = linkedHashMap.get(group);
                     } else {
