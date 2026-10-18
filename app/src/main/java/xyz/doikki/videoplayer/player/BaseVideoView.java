@@ -45,6 +45,11 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
         implements MediaPlayerControl, AbstractPlayer.PlayerEventListener {
 
     protected P mMediaPlayer;//播放器
+
+    /** The active player, for decoder output checks tied to the current playback attempt. */
+    public P getPlayer() {
+        return mMediaPlayer;
+    }
     protected PlayerFactory<P> mPlayerFactory;//工厂类，用于实例化播放核心
     @Nullable
     protected BaseVideoController mVideoController;//控制器
@@ -298,6 +303,8 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
      * 开始准备播放（直接播放）
      */
     protected void startPrepare(boolean reset) {
+        mVideoSize[0] = 0;
+        mVideoSize[1] = 0;
         if (reset) {
             mMediaPlayer.reset();
             //重新设置option，media player reset之后，option会失效
@@ -372,6 +379,8 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
      * 释放播放器
      */
     public void release() {
+        mVideoSize[0] = 0;
+        mVideoSize[1] = 0;
         if (!isInIdleState()) {
             //释放播放器
             if (mMediaPlayer != null) {
