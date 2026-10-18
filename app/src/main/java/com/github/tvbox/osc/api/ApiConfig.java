@@ -24,6 +24,7 @@ import com.github.tvbox.osc.util.AES;
 import com.github.tvbox.osc.util.AdBlocker;
 import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.HawkConfig;
+import com.github.tvbox.osc.util.LatestRequest;
 import com.github.tvbox.osc.util.M3U8;
 import com.github.tvbox.osc.util.MD5;
 import com.github.tvbox.osc.util.FileUtils;
@@ -63,6 +64,14 @@ import com.github.tvbox.osc.util.LOG;
  */
 public class ApiConfig {
     private static ApiConfig instance;
+    private final LatestRequest configRequests = new LatestRequest();
+    private final LatestRequest jarRequests = new LatestRequest();
+    private final Object configRequestTag = new Object();
+    private final Object jarRequestTag = new Object();
+    private Activity loadOwner;
+    private JsonObject loadedConfig;
+    private String loadedApiUrl;
+
     private final LinkedHashMap<String, SourceBean> sourceBeanList;
     private SourceBean mHomeSource;
     private ParseBean mDefaultParse;
@@ -137,210 +146,234 @@ public class ApiConfig {
         return "".getBytes();
     }
 
+    public void cancelLoads(Activity owner) {
+        synchronized (configRequests) {
+            if (loadOwner != owner) return;
+            configRequests.invalidate();
+            jarRequests.invalidate();
+            loadOwner = null;
+            OkGo.getInstance().cancelTag(configRequestTag);
+            OkGo.getInstance().cancelTag(jarRequestTag);
+        }
+    }
+
+    /** Discard state tied to the previous API while retaining the user's persisted preference. */
+    public void clearConfiguration() {
+        synchronized (configRequests) {
+            configRequests.invalidate();
+            jarRequests.invalidate();
+            OkGo.getInstance().cancelTag(configRequestTag);
+            OkGo.getInstance().cancelTag(jarRequestTag);
+            sourceBeanList.clear();
+            mHomeSource = null;
+            mDefaultParse = null;
+            parseBeanList.clear();
+            liveChannelGroupList.clear();
+            vipParseFlags = new ArrayList<>();
+            ijkCodes = null; // parseJson initializes the configured/default codecs on the next load.
+            loadedConfig = null;
+            loadedApiUrl = null;
+            spider = "";
+            wallpaper = "";
+            livePlayHeaders = null;
+            AdBlocker.clear();
+            VideoParseRuler.clearRule();
+            clearLoader();
+        }
+    }
+
     public void loadConfig(boolean useCache, LoadConfigCallback callback, Activity activity) {
-        // Embedded Source : Update in Strings.xml if required
-        String apiUrl = Hawk.get(HawkConfig.API_URL, HomeActivity.getRes().getString(R.string.app_source));
+        final long request;
+        synchronized (configRequests) {
+            request = configRequests.begin();
+            jarRequests.invalidate();
+            loadOwner = activity;
+            OkGo.getInstance().cancelTag(configRequestTag);
+            OkGo.getInstance().cancelTag(jarRequestTag);
+        }
+        String configuredApi = Hawk.get(HawkConfig.API_URL, HomeActivity.getRes().getString(R.string.app_source));
+        final String apiUrl = configuredApi == null ? "" : configuredApi.trim();
         if (apiUrl.isEmpty()) {
-            callback.error("源地址为空");
+            configRequests.commit(request, () -> callback.error("源地址为空"));
             return;
         }
-        File cache = new File(App.getInstance().getFilesDir().getAbsolutePath() + "/" + MD5.encode(apiUrl));
+        File cache = new File(App.getInstance().getFilesDir(), MD5.encode(apiUrl));
         if (useCache && cache.exists()) {
             try {
-                parseJson(apiUrl, cache);
-                callback.success();
+                String json = readConfigFile(cache);
+                configRequests.commit(request, () -> {
+                    parseJson(apiUrl, json);
+                    callback.success();
+                });
                 return;
             } catch (Throwable th) {
                 th.printStackTrace();
             }
         }
-        String TempKey = null, configUrl = "", pk = ";pk;";
-        if (apiUrl.contains(pk)) {
-            String[] a = apiUrl.split(pk);
-            TempKey = a[1];
-            if (apiUrl.startsWith("clan")) {
-                configUrl = clanToAddress(a[0]);
-            } else if (apiUrl.startsWith("http")) {
-                configUrl = a[0];
-            } else {
-                configUrl = "http://" + a[0];
-            }
-        } else if (apiUrl.startsWith("clan")) {
-            configUrl = clanToAddress(apiUrl);
-        } else if (!apiUrl.startsWith("http")) {
-            configUrl = "http://" + configUrl;
+        if (!configRequests.isCurrent(request)) return;
+        String tempKey = null;
+        String configUrl;
+        if (apiUrl.contains(";pk;")) {
+            String[] parts = apiUrl.split(";pk;");
+            tempKey = parts[1];
+            configUrl = parts[0].startsWith("clan") ? clanToAddress(parts[0])
+                    : parts[0].startsWith("http") ? parts[0] : "http://" + parts[0];
         } else {
-            configUrl = apiUrl;
+            configUrl = apiUrl.startsWith("clan") ? clanToAddress(apiUrl)
+                    : apiUrl.startsWith("http") ? apiUrl : "http://" + apiUrl;
         }
-        System.out.println("API URL :" + configUrl);
-        String configKey = TempKey;
-        OkGo.<String>get(configUrl)
+        String configKey = tempKey;
+        OkGo.<String>get(configUrl).tag(configRequestTag)
                 .headers("User-Agent", userAgent)
                 .headers("Accept", requestAccept)
                 .execute(new AbsCallback<String>() {
                     @Override
                     public void onSuccess(Response<String> response) {
                         try {
-                            String json = response.body();
-                            parseJson(apiUrl, json);
-                            try {
-                                File cacheDir = cache.getParentFile();
-                                if (!cacheDir.exists())
-                                    cacheDir.mkdirs();
-                                if (cache.exists())
-                                    cache.delete();
-                                FileOutputStream fos = new FileOutputStream(cache);
-                                fos.write(json.getBytes("UTF-8"));
-                                fos.flush();
-                                fos.close();
-                            } catch (Throwable th) {
-                                th.printStackTrace();
-                            }
-                            callback.success();
+                            configRequests.commit(request, () -> {
+                                String json = response.body();
+                                parseJson(apiUrl, json);
+                                try (FileOutputStream output = new FileOutputStream(cache)) {
+                                    output.write(json.getBytes("UTF-8"));
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                                callback.success();
+                            });
                         } catch (Throwable th) {
                             th.printStackTrace();
-                            callback.error("解析配置失败");
+                            configRequests.commit(request, () -> callback.error("解析配置失败"));
                         }
                     }
 
                     @Override
                     public void onError(Response<String> response) {
-                        super.onError(response);
+                        if (!configRequests.isCurrent(request)) return;
                         if (cache.exists()) {
                             try {
-                                parseJson(apiUrl, cache);
-                                callback.success();
+                                String json = readConfigFile(cache);
+                                configRequests.commit(request, () -> {
+                                    parseJson(apiUrl, json);
+                                    callback.success();
+                                });
                                 return;
                             } catch (Throwable th) {
                                 th.printStackTrace();
                             }
                         }
-                        callback.error("拉取配置失败\n" + (response.getException() != null ? response.getException().getMessage() : ""));
+                        configRequests.commit(request, () -> callback.error("拉取配置失败\n"
+                                + (response.getException() != null ? response.getException().getMessage() : "")));
                     }
 
+                    @Override
                     public String convertResponse(okhttp3.Response response) throws Throwable {
-                        String result = "";
-                        if (response.body() == null) {
-                            result = "";
-                        } else {
-                            result = FindResult(response.body().string(), configKey);
-                        }
-                        if (apiUrl.startsWith("clan")) {
-                            result = clanContentFix(clanToAddress(apiUrl), result);
-                        }
-                        result = fixContentPath(apiUrl, result);
-                        return result;
+                        String result = response.body() == null ? "" : FindResult(response.body().string(), configKey);
+                        if (apiUrl.startsWith("clan")) result = clanContentFix(clanToAddress(apiUrl), result);
+                        return fixContentPath(apiUrl, result);
                     }
                 });
     }
 
+    private String readConfigFile(File file) throws IOException {
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"))) {
+            String line;
+            while ((line = reader.readLine()) != null) content.append(line).append('\n');
+        }
+        return content.toString();
+    }
+
+    private boolean commitJar(long config, long jar, Runnable mutation) {
+        return configRequests.commit(config, () -> jarRequests.commit(jar, mutation));
+    }
+
     public void loadJar(boolean useCache, String spider, LoadConfigCallback callback) {
+        final long config = configRequests.current();
+        final long jar = jarRequests.begin();
+        OkGo.getInstance().cancelTag(jarRequestTag);
         String[] urls = spider.split(";md5;");
         String jarUrl = urls[0];
         String md5 = urls.length > 1 ? urls[1].trim() : "";
-        File cache = new File(App.getInstance().getFilesDir().getAbsolutePath() + "/csp/"+MD5.string2MD5(jarUrl)+".jar");
-        if (!md5.isEmpty() || useCache) {
-            if (cache.exists() && (useCache || MD5.getFileMd5(cache).equalsIgnoreCase(md5))) {
-                if (jarLoader.load(cache.getAbsolutePath())) {
-                    callback.success();
-                } else {
-                    callback.error("从缓存加载jar失败");
-                }
+        File cache = new File(App.getInstance().getFilesDir(), "csp/" + MD5.string2MD5(jarUrl) + ".jar");
+        if (cache.exists() && (useCache || (!md5.isEmpty() && MD5.getFileMd5(cache).equalsIgnoreCase(md5))
+                || (md5.isEmpty() && Boolean.parseBoolean(jarCache) && !FileUtils.isWeekAgo(cache)))) {
+            final boolean[] loaded = {false};
+            commitJar(config, jar, () -> loaded[0] = jarLoader.load(cache.getAbsolutePath()));
+            if (loaded[0]) {
+                commitJar(config, jar, callback::success);
                 return;
             }
-        }else {
-            if (Boolean.parseBoolean(jarCache) && cache.exists() && !FileUtils.isWeekAgo(cache)) {
-                if (jarLoader.load(cache.getAbsolutePath())) {
-                    callback.success();
-                    return;
-                }
+            if (useCache || !md5.isEmpty()) {
+                commitJar(config, jar, () -> callback.error("从缓存加载jar失败"));
+                return;
             }
         }
-
         boolean isJarInImg = jarUrl.startsWith("img+");
-        jarUrl = jarUrl.replace("img+", "");
-        OkGo.<File>get(jarUrl)
+        File download = new File(cache.getParentFile(), cache.getName() + "." + config + "." + jar + ".tmp");
+        OkGo.<File>get(jarUrl.replace("img+", "")).tag(jarRequestTag)
                 .headers("User-Agent", userAgent)
                 .headers("Accept", requestAccept)
                 .execute(new AbsCallback<File>() {
-
                     @Override
-                    public File convertResponse(okhttp3.Response response){
-                        File cacheDir = cache.getParentFile();
-                        assert cacheDir != null;
-                        if (!cacheDir.exists()) cacheDir.mkdirs();
-                        if (cache.exists()) cache.delete();
-                        // 3. 使用 try-with-resources 确保流关闭
-                        assert response.body() != null;
-                        try (FileOutputStream fos = new FileOutputStream(cache)) {
+                    public File convertResponse(okhttp3.Response response) throws Throwable {
+                        if (!configRequests.isCurrent(config) || !jarRequests.isCurrent(jar)) return null;
+                        File parent = download.getParentFile();
+                        if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("无法创建JAR缓存目录");
+                        if (response.body() == null) throw new IOException("JAR data is empty");
+                        try (FileOutputStream output = new FileOutputStream(download)) {
                             if (isJarInImg) {
-                                String respData = response.body().string();
-                                LOG.i("echo---jar Response: " + respData);
-                                byte[] imgJar = getImgJar(respData);
-                                if (imgJar == null || imgJar.length == 0) {
-                                    LOG.e("echo---Generated JAR data is empty");
-                                    callback.error("JAR data is empty");
-                                }
-                                fos.write(imgJar);
+                                byte[] data = getImgJar(response.body().string());
+                                if (data == null || data.length == 0) throw new IOException("JAR data is empty");
+                                output.write(data);
                             } else {
-                                // 使用流式传输避免内存溢出
-                                InputStream inputStream = response.body().byteStream();
-                                byte[] buffer = new byte[4096];
-                                int bytesRead;
-                                while ((bytesRead = inputStream.read(buffer)) != -1) {
-                                    fos.write(buffer, 0, bytesRead);
+                                try (InputStream input = response.body().byteStream()) {
+                                    byte[] buffer = new byte[4096];
+                                    int count;
+                                    while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
                                 }
                             }
-                            fos.flush();
-                        } catch (IOException e) {
+                        } catch (Throwable error) {
+                            download.delete();
+                            throw error;
+                        }
+                        if (!configRequests.isCurrent(config) || !jarRequests.isCurrent(jar)) {
+                            download.delete();
                             return null;
                         }
-                        return cache;
+                        return download;
                     }
 
                     @Override
                     public void onSuccess(Response<File> response) {
-                        File file = response.body();
-                        if (file != null && file.exists()) {
-                            try {
-                                if (jarLoader.load(file.getAbsolutePath())) {
+                        try {
+                            commitJar(config, jar, () -> {
+                                if (response.body() == null || !download.exists()) {
+                                    callback.error("从网络上加载jar地址字节数据为空");
+                                } else if (!download.renameTo(cache)) {
+                                    callback.error("无法写入JAR缓存");
+                                } else if (jarLoader.load(cache.getAbsolutePath())) {
                                     callback.success();
                                 } else {
-                                    LOG.e("echo---jar Loader returned false");
                                     callback.error("从网络上加载jar写入缓存后加载失败");
                                 }
-                            } catch (Exception e) {
-                                LOG.e("echo---jar Loader threw exception: " + e.getMessage());
-                                callback.error("JAR加载异常: " + e.getMessage());
-                            }
-                        } else {
-                            LOG.e("echo---jar File not found");
-                            callback.error("从网络上加载jar地址字节数据为空");
+                            });
+                        } catch (Exception e) {
+                            commitJar(config, jar, () -> callback.error("JAR加载异常: " + e.getMessage()));
+                        } finally {
+                            download.delete();
                         }
                     }
 
                     @Override
                     public void onError(Response<File> response) {
-                        Throwable ex = response.getException();
-                        if (ex != null) {
-                            LOG.i("echo---jar Request failed: " + ex.getMessage());
-                        }
-                        if(cache.exists())jarLoader.load(cache.getAbsolutePath());
-                        callback.error(ex != null ? "从网络上加载jar失败：" + ex.getMessage() : "未知网络错误");
+                        download.delete();
+                        commitJar(config, jar, () -> {
+                            if (cache.exists()) jarLoader.load(cache.getAbsolutePath());
+                            Throwable error = response.getException();
+                            callback.error(error != null ? "从网络上加载jar失败：" + error.getMessage() : "未知网络错误");
+                        });
                     }
                 });
-    }
-
-    private void parseJson(String apiUrl, File f) throws Throwable {
-        System.out.println("从本地缓存加载" + f.getAbsolutePath());
-        BufferedReader bReader = new BufferedReader(new InputStreamReader(new FileInputStream(f), "UTF-8"));
-        StringBuilder sb = new StringBuilder();
-        String s = "";
-        while ((s = bReader.readLine()) != null) {
-            sb.append(s + "\n");
-        }
-        bReader.close();
-        parseJson(apiUrl, sb.toString());
     }
 
     private static  String jarCache ="true";
@@ -354,6 +387,9 @@ public class ApiConfig {
         wallpaper = DefaultConfig.safeJsonString(infoJson, "wallpaper", "");
         // 直播播放请求头
         livePlayHeaders = infoJson.getAsJsonArray("livePlayHeaders");
+        sourceBeanList.clear();
+        mHomeSource = null;
+        mDefaultParse = null;
         // 远端站点源
         SourceBean firstSite = null;
         JsonArray sites = infoJson.has("video") ? infoJson.getAsJsonObject("video").getAsJsonArray("sites") : infoJson.get("sites").getAsJsonArray();
@@ -384,7 +420,7 @@ public class ApiConfig {
                 firstSite = sb;
             sourceBeanList.put(siteKey, sb);
         }
-        if (sourceBeanList != null && sourceBeanList.size() > 0) {
+        if (firstSite != null) {
             String home = Hawk.get(HawkConfig.HOME_API, "");
             SourceBean sh = getSource(home);
             if (sh == null || sh.getHide() == 1)
@@ -424,131 +460,9 @@ public class ApiConfig {
                 setDefaultParse(parseBeanList.get(0));
         }
 
-        // takagen99: Check if Live URL is setup in Settings, if no, get from File Config
-        liveChannelGroupList.clear();           //修复从后台切换重复加载频道列表
-        String liveURL = Hawk.get(HawkConfig.LIVE_URL, "");
-        String epgURL  = Hawk.get(HawkConfig.EPG_URL, "");
-
-        String liveURL_final = null;
-        try {
-            if (infoJson.has("lives") && infoJson.get("lives").getAsJsonArray() != null) {
-                JsonObject livesOBJ = infoJson.get("lives").getAsJsonArray().get(0).getAsJsonObject();
-                String lives = livesOBJ.toString();
-                int index = lives.indexOf("proxy://");
-                if (index != -1) {
-                    int endIndex = lives.lastIndexOf("\"");
-                    String url = lives.substring(index, endIndex);
-                    url = DefaultConfig.checkReplaceProxy(url);
-
-                    //clan
-                    String extUrl = Uri.parse(url).getQueryParameter("ext");
-                    if (extUrl != null && !extUrl.isEmpty()) {
-                        String extUrlFix;
-                        if (extUrl.startsWith("http") || extUrl.startsWith("clan://")) {
-                            extUrlFix = extUrl;
-                        } else {
-                            extUrlFix = new String(Base64.decode(extUrl, Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP), "UTF-8");
-                        }
-                        if (extUrlFix.startsWith("clan://")) {
-                            extUrlFix = clanContentFix(clanToAddress(apiUrl), extUrlFix);
-                        }
-
-                        // takagen99: Capture Live URL into Config
-                        System.out.println("Live URL :" + extUrlFix);
-                        putLiveHistory(extUrlFix);
-                        // Overwrite with Live URL from Settings
-                        if (StringUtils.isBlank(liveURL)) {
-                            Hawk.put(HawkConfig.LIVE_URL, extUrlFix);
-                        } else {
-                            extUrlFix = liveURL;
-                        }
-
-                        // Final Live URL
-                        liveURL_final = extUrlFix;
-
-//                    // Encoding the Live URL
-//                    extUrlFix = Base64.encodeToString(extUrlFix.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
-//                    url = url.replace(extUrl, extUrlFix);
-                    }
-
-                    // takagen99 : Getting EPG URL from File Config & put into Settings
-                    if (livesOBJ.has("epg")) {
-                        String epg = livesOBJ.get("epg").getAsString();
-                        System.out.println("EPG URL :" + epg);
-                        putEPGHistory(epg);
-                        // Overwrite with EPG URL from Settings
-                        if (StringUtils.isBlank(epgURL)) {
-                            Hawk.put(HawkConfig.EPG_URL, epg);
-                        } else {
-                            Hawk.put(HawkConfig.EPG_URL, epgURL);
-                        }
-                    }
-
-//                // Populate Live Channel Listing
-//                LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
-//                liveChannelGroup.setGroupName(url);
-//                liveChannelGroupList.add(liveChannelGroup);
-
-                } else {
-
-                    // if FongMi Live URL Formatting exists
-                    if (!lives.contains("type")) {
-                        loadLives(infoJson.get("lives").getAsJsonArray());
-                    } else {
-                        JsonObject fengMiLives = infoJson.get("lives").getAsJsonArray().get(0).getAsJsonObject();
-                        Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, DefaultConfig.safeJsonInt(fengMiLives, "playerType", -1));
-                        String type = fengMiLives.get("type").getAsString();
-                        if (type.equals("0")) {
-                            String url = fengMiLives.get("url").getAsString();
-
-                            // takagen99 : Getting EPG URL from File Config & put into Settings
-                            if (fengMiLives.has("epg")) {
-                                String epg = fengMiLives.get("epg").getAsString();
-                                System.out.println("EPG URL :" + epg);
-                                putEPGHistory(epg);
-                                // Overwrite with EPG URL from Settings
-                                if (StringUtils.isBlank(epgURL)) {
-                                    Hawk.put(HawkConfig.EPG_URL, epg);
-                                } else {
-                                    Hawk.put(HawkConfig.EPG_URL, epgURL);
-                                }
-                            }
-
-                            if (url.startsWith("http")) {
-                                // takagen99: Capture Live URL into Settings
-                                System.out.println("Live URL :" + url);
-                                putLiveHistory(url);
-                                // Overwrite with Live URL from Settings
-                                if (StringUtils.isBlank(liveURL)) {
-                                    Hawk.put(HawkConfig.LIVE_URL, url);
-                                } else {
-                                    url = liveURL;
-                                }
-
-                                // Final Live URL
-                                liveURL_final = url;
-
-//                            url = Base64.encodeToString(url.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
-                            }
-                        }
-                    }
-                }
-
-                // takagen99: Load Live Channel from settings URL (WIP)
-                if (StringUtils.isBlank(liveURL_final)) {
-                    liveURL_final = liveURL;
-                }
-                liveURL_final = Base64.encodeToString(liveURL_final.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
-                liveURL_final = "http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + liveURL_final;
-                LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
-                liveChannelGroup.setGroupName(liveURL_final);
-                liveChannelGroupList.add(liveChannelGroup);
-            }
-
-
-        } catch (Throwable th) {
-            th.printStackTrace();
-        }
+        applyLiveConfig(apiUrl, infoJson);
+        loadedConfig = infoJson;
+        loadedApiUrl = apiUrl;
 
         // Video parse rule for host
         if (infoJson.has("rules")) {
@@ -732,6 +646,152 @@ public class ApiConfig {
             }
             liveChannelGroupList.add(liveChannelGroup);
         }
+    }
+
+    /** Rebuild only live groups when the user changes or clears the live URL. */
+    public void refreshLiveConfig() {
+        String live = Hawk.get(HawkConfig.LIVE_URL, "");
+        if (live != null && !live.trim().isEmpty()) {
+            liveChannelGroupList.clear();
+            String encoded = Base64.encodeToString(live.trim().getBytes(java.nio.charset.Charset.forName("UTF-8")),
+                    Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
+            LiveChannelGroup group = new LiveChannelGroup();
+            group.setGroupName("http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + encoded);
+            liveChannelGroupList.add(group);
+        } else if (loadedConfig != null) {
+            applyLiveConfig(loadedApiUrl, loadedConfig);
+        } else {
+            liveChannelGroupList.clear();
+        }
+    }
+
+    private void applyLiveConfig(String apiUrl, JsonObject infoJson) {
+        // takagen99: Check if Live URL is setup in Settings, if no, get from File Config
+        liveChannelGroupList.clear();           //修复从后台切换重复加载频道列表
+        String liveURL = Hawk.get(HawkConfig.LIVE_URL, "");
+        String epgURL  = Hawk.get(HawkConfig.EPG_URL, "");
+
+        String liveURL_final = null;
+        try {
+            if (infoJson.has("lives") && infoJson.get("lives").getAsJsonArray() != null) {
+                JsonObject livesOBJ = infoJson.get("lives").getAsJsonArray().get(0).getAsJsonObject();
+                String lives = livesOBJ.toString();
+                int index = lives.indexOf("proxy://");
+                if (index != -1) {
+                    int endIndex = lives.lastIndexOf("\"");
+                    String url = lives.substring(index, endIndex);
+                    url = DefaultConfig.checkReplaceProxy(url);
+
+                    //clan
+                    String extUrl = Uri.parse(url).getQueryParameter("ext");
+                    if (extUrl != null && !extUrl.isEmpty()) {
+                        String extUrlFix;
+                        if (extUrl.startsWith("http") || extUrl.startsWith("clan://")) {
+                            extUrlFix = extUrl;
+                        } else {
+                            extUrlFix = new String(Base64.decode(extUrl, Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP), "UTF-8");
+                        }
+                        if (extUrlFix.startsWith("clan://")) {
+                            extUrlFix = clanContentFix(clanToAddress(apiUrl), extUrlFix);
+                        }
+
+                        // takagen99: Capture Live URL into Config
+                        System.out.println("Live URL :" + extUrlFix);
+                        putLiveHistory(extUrlFix);
+                        // Overwrite with Live URL from Settings
+                        if (StringUtils.isBlank(liveURL)) {
+                            Hawk.put(HawkConfig.LIVE_URL, extUrlFix);
+                        } else {
+                            extUrlFix = liveURL;
+                        }
+
+                        // Final Live URL
+                        liveURL_final = extUrlFix;
+
+//                    // Encoding the Live URL
+//                    extUrlFix = Base64.encodeToString(extUrlFix.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
+//                    url = url.replace(extUrl, extUrlFix);
+                    }
+
+                    // takagen99 : Getting EPG URL from File Config & put into Settings
+                    if (livesOBJ.has("epg")) {
+                        String epg = livesOBJ.get("epg").getAsString();
+                        System.out.println("EPG URL :" + epg);
+                        putEPGHistory(epg);
+                        // Overwrite with EPG URL from Settings
+                        if (StringUtils.isBlank(epgURL)) {
+                            Hawk.put(HawkConfig.EPG_URL, epg);
+                        } else {
+                            Hawk.put(HawkConfig.EPG_URL, epgURL);
+                        }
+                    }
+
+//                // Populate Live Channel Listing
+//                LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
+//                liveChannelGroup.setGroupName(url);
+//                liveChannelGroupList.add(liveChannelGroup);
+
+                } else {
+
+                    // if FongMi Live URL Formatting exists
+                    if (!lives.contains("type")) {
+                        loadLives(infoJson.get("lives").getAsJsonArray());
+                    } else {
+                        JsonObject fengMiLives = infoJson.get("lives").getAsJsonArray().get(0).getAsJsonObject();
+                        Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, DefaultConfig.safeJsonInt(fengMiLives, "playerType", -1));
+                        String type = fengMiLives.get("type").getAsString();
+                        if (type.equals("0")) {
+                            String url = fengMiLives.get("url").getAsString();
+
+                            // takagen99 : Getting EPG URL from File Config & put into Settings
+                            if (fengMiLives.has("epg")) {
+                                String epg = fengMiLives.get("epg").getAsString();
+                                System.out.println("EPG URL :" + epg);
+                                putEPGHistory(epg);
+                                // Overwrite with EPG URL from Settings
+                                if (StringUtils.isBlank(epgURL)) {
+                                    Hawk.put(HawkConfig.EPG_URL, epg);
+                                } else {
+                                    Hawk.put(HawkConfig.EPG_URL, epgURL);
+                                }
+                            }
+
+                            if (url.startsWith("http")) {
+                                // takagen99: Capture Live URL into Settings
+                                System.out.println("Live URL :" + url);
+                                putLiveHistory(url);
+                                // Overwrite with Live URL from Settings
+                                if (StringUtils.isBlank(liveURL)) {
+                                    Hawk.put(HawkConfig.LIVE_URL, url);
+                                } else {
+                                    url = liveURL;
+                                }
+
+                                // Final Live URL
+                                liveURL_final = url;
+
+//                            url = Base64.encodeToString(url.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
+                            }
+                        }
+                    }
+                }
+
+                // takagen99: Load Live Channel from settings URL (WIP)
+                if (StringUtils.isBlank(liveURL_final)) {
+                    liveURL_final = liveURL;
+                }
+                liveURL_final = Base64.encodeToString(liveURL_final.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
+                liveURL_final = "http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + liveURL_final;
+                LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
+                liveChannelGroup.setGroupName(liveURL_final);
+                liveChannelGroupList.add(liveChannelGroup);
+            }
+
+
+        } catch (Throwable th) {
+            th.printStackTrace();
+        }
+
     }
 
     public String getSpider() {
