@@ -221,7 +221,10 @@ public class HomeActivity extends BaseActivity {
         getViewModelStore().clear();
         getIntent().putExtra("useCache", reload == HomeSettings.Reload.CACHE);
         getIntent().putExtra(EXTRA_SETTINGS_RELOAD, true);
-        recreate();
+        // Finish this onResume before relaunching; older Android rejects a synchronous pause here.
+        mInitHandler.post(() -> {
+            if (!isFinishing()) recreate();
+        });
     }
 
     // takagen99: Added to allow read string
