@@ -1,15 +1,31 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+// 仓库顺序: 本地默认国内镜像优先(下载更快); CI(GitHub Actions 会设置 CI=true)官方仓库优先。
+// 镜像偶发 5xx 时 Gradle 会直接判定依赖解析失败、不会回落到后面的仓库(dev 构建曾因
+// aliyun public 返回 502 失败), 而官方仓库上没有的 jcenter 时代老库(okgo/loadsir/autosize/
+// AliyunPlayer 等)仍会回落到镜像。本地想临时改成官方仓库优先: CI=true ./gradlew ...
 buildscript {
     ext.kotlin_version = "1.9.25"
+    ext.ciOfficialFirst = "true".equalsIgnoreCase(System.getenv("CI"))
+    ext.chinaMavenMirrors = [
+            "https://maven.aliyun.com/repository/public",
+            "https://maven.aliyun.com/repository/central",
+            "https://maven.aliyun.com/repository/google",
+            "https://maven.aliyun.com/repository/releases",
+            "https://maven.aliyun.com/repository/gradle-plugin",
+    ]
     repositories {
-        maven { url "https://maven.aliyun.com/repository/public" }
-        maven { url "https://maven.aliyun.com/repository/central" }
-        maven { url "https://maven.aliyun.com/repository/google" }
-        maven { url "https://maven.aliyun.com/repository/releases" }
-        maven { url "https://maven.aliyun.com/repository/gradle-plugin" }
-        google()
-        mavenCentral()
-        gradlePluginPortal()
+        if (ciOfficialFirst) {
+            google()
+            mavenCentral()
+            gradlePluginPortal()
+        }
+        chinaMavenMirrors.each { mirrorUrl -> maven { url mirrorUrl } }
+        if (!ciOfficialFirst) {
+            google()
+            mavenCentral()
+            gradlePluginPortal()
+        }
         maven { url "https://jitpack.io" }
         maven { url "https://storage.googleapis.com/r8-releases/raw" }
         maven { url "https://chaquo.com/maven" }
@@ -28,14 +44,17 @@ buildscript {
 
 allprojects {
     repositories {
-        maven { url "https://maven.aliyun.com/repository/public" }
-        maven { url "https://maven.aliyun.com/repository/central" }
-        maven { url "https://maven.aliyun.com/repository/google" }
-        maven { url "https://maven.aliyun.com/repository/releases" }
-        maven { url "https://maven.aliyun.com/repository/gradle-plugin" }
-        google()
-        mavenCentral()
-        gradlePluginPortal()
+        if (ciOfficialFirst) {
+            google()
+            mavenCentral()
+            gradlePluginPortal()
+        }
+        chinaMavenMirrors.each { mirrorUrl -> maven { url mirrorUrl } }
+        if (!ciOfficialFirst) {
+            google()
+            mavenCentral()
+            gradlePluginPortal()
+        }
         maven { url "https://jitpack.io" }
         maven { url "https://maven.mozilla.org/maven2/" }
     }
