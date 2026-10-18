@@ -161,12 +161,6 @@ public class PlayerHelper {
             return "Exo";
         } else if (playType == 3) {
             return "Exo";
-        } else if (playType == 10) {
-            return "MX";
-        } else if (playType == 11) {
-            return "Reex";
-        } else if (playType == 12) {
-            return "Kodi";
         } else {
             return "系统";
         }

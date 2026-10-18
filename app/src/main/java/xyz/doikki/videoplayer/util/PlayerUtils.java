@@ -276,7 +276,7 @@ public final class PlayerUtils {
         }
     }
 
-    public static String stringForTimeVod(int timeMs) {
+    public static String stringForPlaybackTime(int timeMs) {
         int totalSeconds = timeMs / 1000;
         int seconds = totalSeconds % 60;
         int minutes = (totalSeconds / 60) % 60;

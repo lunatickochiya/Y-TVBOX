@@ -171,7 +171,7 @@
                     android:indeterminateBehavior="repeat"
                     android:indeterminateDrawable="@drawable/dkplayer_progress_loading"
                     android:indeterminateOnly="true"
-                    android:tag="vod_control_loading_hide" />
+                    android:tag="live_control_loading_hide" />
             </LinearLayout>
 
         </LinearLayout>
@@ -182,7 +182,7 @@
         android:id="@+id/tv_pause_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:tag="vod_control_pause"
+        android:tag="live_control_pause"
         android:visibility="gone"
         tools:visibility="visible">
 
@@ -297,7 +297,7 @@
                         android:indeterminateBehavior="repeat"
                         android:indeterminateDrawable="@drawable/dkplayer_progress_loading"
                         android:indeterminateOnly="true"
-                        android:tag="vod_control_loading" />
+                        android:tag="live_control_loading" />
                 </LinearLayout>
 
             </LinearLayout>
@@ -389,7 +389,7 @@
                     android:shadowDx="0"
                     android:shadowDy="0"
                     android:shadowRadius="5"
-                    android:tag="vod_control_pause_t"
+                    android:tag="live_control_pause_t"
                     android:textColor="@android:color/white"
                     android:textSize="@dimen/ts_26"
                     android:textStyle="bold"
@@ -434,7 +434,7 @@
         android:shadowDx="0"
         android:shadowDy="0"
         android:shadowRadius="5"
-        android:tag="vod_control_slide_info"
+        android:tag="live_control_slide_info"
         android:textAlignment="gravity"
         android:textColor="@android:color/white"
         android:textSize="@dimen/ts_26"

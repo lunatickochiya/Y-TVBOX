@@ -31,6 +31,7 @@ public class LiveBackupDialog extends BaseDialog {
 
     private BackupAdapter adapter;
     private TextView tvTip;
+    private boolean permissionSettingsRequired;
 
     public LiveBackupDialog(@NonNull @NotNull Context context) {
         super(context);
@@ -46,11 +47,13 @@ public class LiveBackupDialog extends BaseDialog {
         adapter.setOnItemChildClickListener(new BaseQuickAdapter.OnItemChildClickListener() {
             @Override
             public void onItemChildClick(BaseQuickAdapter baseAdapter, View view, int position) {
-                final String name = (String) baseAdapter.getItem(position);
+                final File file = (File) baseAdapter.getItem(position);
                 if (view.getId() == R.id.tvName) {
-                    restore(name);
+                    restore(file);
                 } else if (view.getId() == R.id.tvDel) {
-                    LiveBackupUtil.delete(name);
+                    if (!LiveBackupUtil.delete(file)) {
+                        Toast.makeText(getContext(), "删除失败，请检查文件读写权限", Toast.LENGTH_SHORT).show();
+                    }
                     refresh();
                 }
             }
@@ -70,29 +73,28 @@ public class LiveBackupDialog extends BaseDialog {
     }
 
     private void refresh() {
-        List<String> backups = LiveBackupUtil.listBackups();
+        List<File> backups = LiveBackupUtil.listBackups();
         adapter.setNewData(backups);
         String dir = LiveBackupUtil.backupDir().getAbsolutePath();
-        if (backups.isEmpty()) {
-            tvTip.setText("暂无备份\n备份目录: " + dir);
-        } else {
-            tvTip.setText("备份目录: " + dir);
-        }
+        String access = XXPermissions.isGranted(getContext(), DefaultConfig.StoragePermissionGroup())
+                ? "已获得共享存储读写权限" : "未授权共享存储，仍可备份到应用私有目录";
+        tvTip.setText(access + "\n新备份保存到：" + dir
+                + (backups.isEmpty() ? "\n暂无备份" : "\n选择下方文件恢复设置"));
     }
 
     private void backup() {
         File file = LiveBackupUtil.backup();
         if (file != null) {
-            Toast.makeText(getContext(), "备份成功: " + file.getName(), Toast.LENGTH_LONG).show();
+            Toast.makeText(getContext(), "备份成功: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } else {
             Toast.makeText(getContext(), "备份失败, 请检查存储权限", Toast.LENGTH_SHORT).show();
         }
         refresh();
     }
 
-    private void restore(final String name) {
-        if (!LiveBackupUtil.restore(name)) {
-            Toast.makeText(getContext(), "恢复失败: " + name, Toast.LENGTH_SHORT).show();
+    private void restore(final File file) {
+        if (!LiveBackupUtil.restore(file)) {
+            Toast.makeText(getContext(), "恢复失败: " + file.getName(), Toast.LENGTH_SHORT).show();
             return;
         }
         Toast.makeText(getContext(), "恢复成功, 3 秒后自动重启应用", Toast.LENGTH_LONG).show();
@@ -130,6 +132,10 @@ public class LiveBackupDialog extends BaseDialog {
                 Toast.makeText(getContext(), "已获得存储权限", Toast.LENGTH_SHORT).show();
                 return;
             }
+            if (permissionSettingsRequired) {
+                openPermissionSettings(java.util.Arrays.asList(DefaultConfig.StoragePermissionGroup()));
+                return;
+            }
             XXPermissions.with(getContext())
                     .permission(DefaultConfig.StoragePermissionGroup())
                     .request(new OnPermissionCallback() {
@@ -143,17 +149,18 @@ public class LiveBackupDialog extends BaseDialog {
 
                         @Override
                         public void onDenied(List<String> permissions, boolean never) {
+                            permissionSettingsRequired = never;
                             if (never) {
-                                Toast.makeText(getContext(), "获取存储权限失败,请在系统设置中开启", Toast.LENGTH_SHORT).show();
-                                openPermissionSettings(permissions);
+                                Toast.makeText(getContext(), "共享存储未授权，可再次点击按钮前往设置；私有备份仍可使用", Toast.LENGTH_LONG).show();
                             } else {
-                                Toast.makeText(getContext(), "获取存储权限失败", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(getContext(), "共享存储未授权，私有备份仍可使用", Toast.LENGTH_SHORT).show();
                             }
                         }
                     });
         } catch (Throwable e) {
             e.printStackTrace();
-            Toast.makeText(getContext(), "获取存储权限失败", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "无法打开授权页，请在系统应用权限中开启；私有备份仍可使用", Toast.LENGTH_LONG).show();
+            openPermissionSettings(java.util.Arrays.asList(DefaultConfig.StoragePermissionGroup()));
         }
     }
 
@@ -163,5 +170,11 @@ public class LiveBackupDialog extends BaseDialog {
         } catch (Throwable e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && adapter != null) refresh();
     }
 }

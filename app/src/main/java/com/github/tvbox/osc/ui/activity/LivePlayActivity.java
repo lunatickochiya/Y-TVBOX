@@ -1,6 +1,6 @@
 package com.github.tvbox.osc.ui.activity;
 
-import static xyz.doikki.videoplayer.util.PlayerUtils.stringForTimeVod;
+import static xyz.doikki.videoplayer.util.PlayerUtils.stringForPlaybackTime;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -199,7 +199,7 @@ public class LivePlayActivity extends BaseActivity {
     TextView mCurrentTime;
     SeekBar mSeekBar;
     TextView mTotalTime;
-    boolean isVOD = false;
+    boolean hasSeekableTimeline = false;
 
     // center BACK button
     LinearLayout mBack;
@@ -323,7 +323,7 @@ public class LivePlayActivity extends BaseActivity {
         tv_source = findViewById(R.id.tv_source);             // Source/Total Source
         tv_sys_time = findViewById(R.id.tv_sys_time);         // System Time
 
-        // VOD SeekBar
+        // IPTV 回看进度条
         llSeekBar = findViewById(R.id.ll_seekbar);
         mCurrentTime = findViewById(R.id.curr_time);
         mSeekBar = findViewById(R.id.seekBar);
@@ -379,7 +379,7 @@ public class LivePlayActivity extends BaseActivity {
         initLiveChannelList();
         initLiveSettingGroupList();
 
-        // takagen99 : Add SeekBar for VOD
+        // IPTV 回看进度控制
         mSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -392,7 +392,7 @@ public class LivePlayActivity extends BaseActivity {
                 long duration = mVideoView.getDuration();
                 long newPosition = (duration * progress) / seekBar.getMax();
                 if (mCurrentTime != null)
-                    mCurrentTime.setText(stringForTimeVod((int) newPosition));
+                    mCurrentTime.setText(stringForPlaybackTime((int) newPosition));
             }
 
             @Override
@@ -542,14 +542,14 @@ public class LivePlayActivity extends BaseActivity {
                     case KeyEvent.KEYCODE_DPAD_LEFT:
                         // takagen99 : To cater for newer Android w no Menu button
                         // playPreSource();
-                        if (!isVOD) {
+                        if (!hasSeekableTimeline) {
                             showSettingGroup();
                         } else {
                             showChannelInfo();
                         }
                         break;
                     case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        if (!isVOD) {
+                        if (!hasSeekableTimeline) {
                             playNextSource();
                         } else {
                             showChannelInfo();
@@ -886,7 +886,7 @@ public class LivePlayActivity extends BaseActivity {
             // takagen99 : Update SeekBar
             if (mVideoView != null & !mIsDragging) {
                 int currentPosition = (int) mVideoView.getCurrentPosition();
-                mCurrentTime.setText(stringForTimeVod(currentPosition));
+                mCurrentTime.setText(stringForPlaybackTime(currentPosition));
                 mSeekBar.setProgress(currentPosition);
             }
         }
@@ -938,6 +938,7 @@ public class LivePlayActivity extends BaseActivity {
 
     // 获取EPG并存储 // 百川epg
     private List<Epginfo> epgdata = new ArrayList<>();
+    private int epgRequestVersion;
 
     // Get Channel Logo
     private void getTvLogo(String channelName, String logoUrl) {
@@ -953,6 +954,7 @@ public class LivePlayActivity extends BaseActivity {
 
     public void getEpg(Date date) {
         if (!isPlaybackAvailable() || channel_Name == null) return;
+        final int requestVersion = ++epgRequestVersion;
 
         OkGo.getInstance().cancelTag(this);
 
@@ -967,10 +969,7 @@ public class LivePlayActivity extends BaseActivity {
         }
         epgListAdapter.CanBack(currentLiveChannelItem.getinclude_back());
 
-        String currentEpgAddress = Hawk.get(HawkConfig.EPG_URL, "");
-        if (currentEpgAddress != null && !currentEpgAddress.isEmpty()) {
-            epgStringAddress = currentEpgAddress;
-        }
+        epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
 
         if (epgStringAddress == null || epgStringAddress.isEmpty()) {
             showEpg(date, new ArrayList());
@@ -985,6 +984,7 @@ public class LivePlayActivity extends BaseActivity {
                 @Override
                 public void onResult(List<Epginfo> list) {
                     if (!isPlaybackAvailable() || channel_Name == null) return;
+                    if (requestVersion != epgRequestVersion) return;
                     if (epgChannelName != null && !epgChannelName.equals(channel_Name.getChannelName()))
                         return;
                     ArrayList arrayList = new ArrayList(list);
@@ -1013,6 +1013,7 @@ public class LivePlayActivity extends BaseActivity {
             @Override
             public void onSuccess(Response<String> response) {
                 if (!isPlaybackAvailable() || channel_Name == null) return;
+                if (requestVersion != epgRequestVersion) return;
                 String paramString = response.body();
                 ArrayList arrayList = new ArrayList();
 
@@ -1047,6 +1048,7 @@ public class LivePlayActivity extends BaseActivity {
 
             public void onFailure(int i, String str) {
                 if (!isPlaybackAvailable() || channel_Name == null) return;
+                if (requestVersion != epgRequestVersion) return;
                 if (channelName != null && !channelName.equals(channel_Name.getChannelName()))
                     return;
                 boolean hasData = epgdata != null && !epgdata.isEmpty()
@@ -1185,17 +1187,13 @@ public class LivePlayActivity extends BaseActivity {
         LiveQrConfigDialog dialog = new LiveQrConfigDialog(this, new LiveQrConfigDialog.OnSaveListener() {
             @Override
             public void onSave(String liveUrl, String epgUrl) {
-                if (!liveUrl.isEmpty()) {
+                if (liveUrl != null) {
                     ApiConfig.putLiveHistory(liveUrl);
                     reloadLiveSource(liveUrl);
                     Toast.makeText(mContext, "直播源已保存, 正在重新加载频道...", Toast.LENGTH_SHORT).show();
                 }
-                if (!epgUrl.isEmpty()) {
-                    ApiConfig.putEPGHistory(epgUrl);
-                    epgStringAddress = epgUrl;
-                    if (isCurrentLiveChannelValid()) {
-                        getEpg(new Date());
-                    }
+                if (epgUrl != null) {
+                    applyEpgSource(epgUrl);
                     Toast.makeText(mContext, "EPG地址已保存", Toast.LENGTH_SHORT).show();
                 }
             }
@@ -1231,16 +1229,27 @@ public class LivePlayActivity extends BaseActivity {
                 new LiveUrlDialog.OnSubmitListener() {
                     @Override
                     public void onSubmit(String url) {
-                        Hawk.put(HawkConfig.EPG_URL, url);
-                        ApiConfig.putEPGHistory(url);
-                        epgStringAddress = url;
-                        if (isCurrentLiveChannelValid()) {
-                            getEpg(new Date());
-                        }
+                        applyEpgSource(url);
                         Toast.makeText(mContext, "EPG地址已保存", Toast.LENGTH_SHORT).show();
                     }
                 });
         dialog.show();
+    }
+
+    private void applyEpgSource(String url) {
+        Hawk.put(HawkConfig.EPG_URL, url);
+        if (!url.isEmpty()) ApiConfig.putEPGHistory(url);
+        epgStringAddress = url;
+        ++epgRequestVersion;
+        hsEpg.clear();
+        tv_curr_time.setText("");
+        tv_curr_name.setText("暂无节目信息");
+        tv_next_time.setText("");
+        tv_next_name.setText("");
+        if (isCurrentLiveChannelValid()) {
+            showEpg(new Date(), new ArrayList<>());
+            getEpg(new Date());
+        }
     }
 
     /** 直播设置-频道显示(隐藏分组/频道) */
@@ -1502,17 +1511,17 @@ public class LivePlayActivity extends BaseActivity {
                         if (mVideoView.getVideoSize().length >= 2) {
                             tv_size.setText(mVideoView.getVideoSize()[0] + " x " + mVideoView.getVideoSize()[1]);
                         }
-                        // Show SeekBar if it's a VOD (with duration)
+                        // 有时长的直播回看流显示进度条
                         int duration = (int) mVideoView.getDuration();
                         if (duration > 0) {
-                            isVOD = true;
+                            hasSeekableTimeline = true;
                             llSeekBar.setVisibility(View.VISIBLE);
                             mSeekBar.setProgress(10);
                             mSeekBar.setMax(duration);
                             mSeekBar.setProgress(0);
-                            mTotalTime.setText(stringForTimeVod(duration));
+                            mTotalTime.setText(stringForPlaybackTime(duration));
                         } else {
-                            isVOD = false;
+                            hasSeekableTimeline = false;
                             llSeekBar.setVisibility(View.GONE);
                         }
                         // Exo readiness can precede its first video frame, so start the watchdog here.
@@ -2328,24 +2337,17 @@ public class LivePlayActivity extends BaseActivity {
         if (event.type == RefreshEvent.TYPE_EPG_URL_CHANGE) {
             // 手机网页推送过来的 EPG 地址: 保存 + 记入历史
             String url = event.obj == null ? "" : event.obj.toString().trim();
-            if (!TextUtils.isEmpty(url)) {
-                Hawk.put(HawkConfig.EPG_URL, url);
-                ApiConfig.putEPGHistory(url);
-            }
-            epgStringAddress = Hawk.get(HawkConfig.EPG_URL, "");
-            if (channel_Name != null) {
-                getEpg(new Date());
-            }
+            applyEpgSource(url);
+            Toast.makeText(mContext, url.isEmpty() ? "已停用自定义节目单" : "已收到 EPG 地址", Toast.LENGTH_SHORT).show();
             return;
         }
         if (event.type == RefreshEvent.TYPE_LIVE_URL_CHANGE) {
             // 手机网页/推送过来的直播地址(LivePlayActivity 是 y-live 唯一界面, 在这里直接生效)
             String url = event.obj == null ? "" : event.obj.toString().trim();
             if (!TextUtils.isEmpty(url)) {
-                Hawk.put(HawkConfig.LIVE_URL, url);
-                ApiConfig.putLiveHistory(url);
                 liveChannelGroupList.clear();
                 reloadLiveSource(url);
+                Toast.makeText(mContext, "已收到直播源，正在加载频道…", Toast.LENGTH_SHORT).show();
             }
             return;
         }

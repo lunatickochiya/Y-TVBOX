@@ -19,7 +19,6 @@ import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.LocaleHelper;
 import com.github.tvbox.osc.util.LOG;
 import com.github.tvbox.osc.util.OkGoHelper;
-import com.github.tvbox.osc.util.SubtitleHelper;
 import com.hjq.permissions.XXPermissions;
 import com.kingja.loadsir.core.LoadSir;
 import com.orhanobut.hawk.Hawk;
@@ -50,7 +49,6 @@ public class App extends MultiDexApplication {
     @Override
     public void onCreate() {
         super.onCreate();
-        SubtitleHelper.initSubtitleColor(this);
         initParams();
         // takagen99 : Initialize Locale
         initLocale();
@@ -60,7 +58,7 @@ public class App extends MultiDexApplication {
         XXPermissions.setCheckMode(false);
         // Get EPG Info
         EpgUtil.init();
-        // 初始化Web服务器(直播列表代理 + 手机扫码推送必须)
+        // 初始化手机扫码配置服务
         ControlManager.init(this);
         LoadSir.beginBuilder()
                 .addCallback(new EmptyCallback())
@@ -83,20 +81,12 @@ public class App extends MultiDexApplication {
         // y-live: 直播界面只加载频道台标等小图, 把 Glide 图片内存缓存/位图池调低一档, 降低常驻内存
         Glide.get(this).setMemoryCategory(MemoryCategory.LOW);
 
-        // Delete Cache
-        /*File dir = getCacheDir();
-        FileUtils.recursiveDelete(dir);
-        dir = getExternalCacheDir();
-        FileUtils.recursiveDelete(dir);*/
-
         FileUtils.cleanPlayerCache();
-
-        // y-live: QuickJS 只有点播爬虫用到, 纯直播版不初始化(省内存 + 加快启动)
 
         // add font support, my tv embed font not include emoji
         String extStorageDir = Environment.getExternalStorageDirectory().getAbsolutePath();
         File fontFile = new File(extStorageDir + "/tvbox.ttf");
-        if (fontFile.exists()) {
+        if (fontFile.isFile() && fontFile.canRead()) {
             viewPump = ViewPump.builder()
                     .addInterceptor(new CalligraphyInterceptor(
                             new CalligraphyConfig.Builder()

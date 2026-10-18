@@ -601,8 +601,8 @@
                     android:padding="@dimen/vs_1"
                     android:paddingStart="@dimen/vs_0"
                     android:paddingEnd="@dimen/vs_0"
-                    android:progressDrawable="@drawable/shape_player_control_vod_seek"
-                    android:thumb="@drawable/shape_player_control_vod_seek_thumb"
+                    android:progressDrawable="@drawable/shape_player_control_live_seek"
+                    android:thumb="@drawable/shape_player_control_live_seek_thumb"
                     android:thumbOffset="@dimen/vs_0" />
 
                 <TextView
@@ -679,7 +679,7 @@
         android:layout_marginLeft="@dimen/vs_50"
         android:layout_marginEnd="@dimen/vs_50"
         android:layout_marginRight="@dimen/vs_50"
-        android:background="@drawable/button_dialog_vod"
+        android:background="@drawable/button_dialog_live"
         android:clickable="true"
         android:focusable="false"
         android:gravity="center"

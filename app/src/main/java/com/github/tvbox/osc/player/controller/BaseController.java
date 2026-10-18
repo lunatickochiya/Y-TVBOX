@@ -141,11 +141,11 @@ public abstract class BaseController extends BaseVideoController implements Gest
         mAudioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
         mGestureDetector = new GestureDetector(getContext(), this);
         setOnTouchListener(this);
-        mSlideInfo = findViewWithTag("vod_control_slide_info");
-        mLoading = findViewWithTag("vod_control_loading");
-        mLoadingHide = findViewWithTag("vod_control_loading_hide");
-        mPauseRoot = findViewWithTag("vod_control_pause");
-        mPauseTime = findViewWithTag("vod_control_pause_t");
+        mSlideInfo = findViewWithTag("live_control_slide_info");
+        mLoading = findViewWithTag("live_control_loading");
+        mLoadingHide = findViewWithTag("live_control_loading_hide");
+        mPauseRoot = findViewWithTag("live_control_pause");
+        mPauseTime = findViewWithTag("live_control_pause_t");
         mSpeedTextTop = findViewWithTag("play_speed_top");
         mSpeedTextTopr = findViewWithTag("play_speed_topr");
         mSpeedTextHide = findViewWithTag("play_speed_top_hide");

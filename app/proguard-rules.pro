@@ -18,14 +18,8 @@
 -keepattributes LineNumberTable
 -renamesourcefileattribute SourceFile
 
-# 重新包装所有重命名的包并放在给定的单一包中
--flattenpackagehierarchy androidx.base
-
-# 将包里的类混淆成n个再重新打包到一个统一的package中  会覆盖flattenpackagehierarchy选项
+# 将混淆后的类统一放到同一个包
 -repackageclasses androidx.base
-
-# 把混淆类中的方法名也混淆了
--useuniqueclassmembernames
 #############################################
 #
 # Android开发中一些需要保留的公共部分
@@ -125,13 +119,6 @@
     void *(**On*Event);
     void *(**On*Listener);
 }
-#xwalk
--keep class org.xwalk.core.** { *; }
--keep class org.crosswalk.engine.** { *; }
--keep class org.chromium.** { *; }
--dontwarn android.view.**
--dontwarn android.media.**
--dontwarn org.chromium.**
 #okhttp
 -dontwarn okhttp3.**
 -keep class okhttp3.**{*;}
@@ -157,14 +144,6 @@
 -keepclassmembers,allowobfuscation class * {
   @com.google.gson.annotations.SerializedName <fields>;
 }
-#xstream
--keep class com.thoughtworks.xstream.converters.extended.SubjectConverter { *; }
--keep class com.thoughtworks.xstream.converters.extended.ThrowableConverter { *; }
--keep class com.thoughtworks.xstream.converters.extended.StackTraceElementConverter { *; }
--keep class com.thoughtworks.xstream.converters.extended.CurrencyConverter { *; }
--keep class com.thoughtworks.xstream.converters.extended.RegexPatternConverter { *; }
--keep class com.thoughtworks.xstream.converters.extended.CharsetConverter { *; }
--keep class com.thoughtworks.xstream.** { *; }
 #eventbus
 -keepclassmembers class * {
     @org.greenrobot.eventbus.Subscribe <methods>;
@@ -174,11 +153,6 @@
 -keepclassmembers class * extends org.greenrobot.eventbus.util.ThrowableFailureEvent {
     <init>(java.lang.Throwable);
 }
-#bugly
--dontwarn com.tencent.bugly.**
--keep public class com.tencent.bugly.**{*;}
--keep class android.support.**{*;}
-
 #dkplayer
 -keep class com.dueeeke.videoplayer.** { *; }
 -dontwarn com.dueeeke.videoplayer.**
@@ -193,137 +167,10 @@
 -keep class androidx.media3.exoplayer.** { *; }
 -dontwarn androidx.media3.exoplayer.**
 
-# sardine webdav
--keep class com.thegrizzlylabs.sardineandroid.** { *; }
--dontwarn com.thegrizzlylabs.sardineandroid.**
+# JSON 模型与扫码二维码
+-keep class com.google.gson.** { *; }
+-keep class com.google.zxing.** { *; }
 
-# filepicker
--keep class com.obsez.android.lib.filechooser.** { *; }
--dontwarn com.obsez.android.lib.filechooser.**
-
-# jcifs (smb)
--keep class jcifs.** { *; }
--dontwarn jcifs.**
-
-# 实体类
-#-keep class com.github.tvbox.osc.bean.** { *; }
--keep class com.github.tvbox.osc.ui.fragment.homes.**{*;}
-#CardView
--keep class com.github.tvbox.osc.ui.tv.widget.card.**{*;}
-#ViewObj
--keep class com.github.tvbox.osc.ui.tv.widget.ViewObj{
-    <methods>;
-}
-
--keep class com.github.catvod.crawler.*{*;}
-
-# magnet：解决模拟器推送 磁力链接 闪退
--keep class com.xunlei.downloadlib.** {*;}
-
-# quickjs引擎
--keep class com.whl.quickjs.** {*;}
-
-# 支持影视的ali相关的jar
--keep class com.google.gson.**{*;}
-# 某些类会反射调用zxing导致生成阿里云二维码报错
--keep class com.google.zxing.** {*;}
-#阿里云播放器
--keep class com.alivc.**{*;}
--keep class com.aliyun.**{*;}
--keep class com.cicada.**{*;}
--dontwarn com.alivc.**
--dontwarn com.aliyun.**
--dontwarn com.cicada.**
-
-# from app -> build -> outputs -> mapping -> your_app_name -> missing_rules.txt
-# Please add these rules to your existing keep rules in order to suppress warnings.
-# This is generated automatically by the Android Gradle plugin.
+# 旧版 Android TLS 实现(SSLCompat)
 -dontwarn com.android.org.conscrypt.SSLParametersImpl
--dontwarn com.ctc.wstx.stax.WstxInputFactory
--dontwarn com.ctc.wstx.stax.WstxOutputFactory
--dontwarn java.awt.Color
--dontwarn java.awt.Font
--dontwarn java.beans.BeanInfo
--dontwarn java.beans.IntrospectionException
--dontwarn java.beans.Introspector
--dontwarn java.beans.PropertyDescriptor
--dontwarn java.beans.PropertyEditor
--dontwarn javax.activation.ActivationDataFlavor
--dontwarn javax.swing.plaf.FontUIResource
--dontwarn javax.xml.bind.DatatypeConverter
--dontwarn net.sf.cglib.proxy.Callback
--dontwarn net.sf.cglib.proxy.CallbackFilter
--dontwarn net.sf.cglib.proxy.Enhancer
--dontwarn net.sf.cglib.proxy.Factory
--dontwarn net.sf.cglib.proxy.NoOp
--dontwarn net.sf.cglib.proxy.Proxy
--dontwarn nu.xom.Attribute
--dontwarn nu.xom.Builder
--dontwarn nu.xom.Document
--dontwarn nu.xom.Element
--dontwarn nu.xom.Elements
--dontwarn nu.xom.Node
--dontwarn nu.xom.ParentNode
--dontwarn nu.xom.ParsingException
--dontwarn nu.xom.Text
--dontwarn nu.xom.ValidityException
 -dontwarn org.apache.harmony.xnet.provider.jsse.SSLParametersImpl
--dontwarn org.codehaus.jettison.AbstractXMLStreamWriter
--dontwarn org.codehaus.jettison.mapped.Configuration
--dontwarn org.codehaus.jettison.mapped.MappedNamespaceConvention
--dontwarn org.codehaus.jettison.mapped.MappedXMLInputFactory
--dontwarn org.codehaus.jettison.mapped.MappedXMLOutputFactory
--dontwarn org.dom4j.Attribute
--dontwarn org.dom4j.Branch
--dontwarn org.dom4j.Document
--dontwarn org.dom4j.DocumentException
--dontwarn org.dom4j.DocumentFactory
--dontwarn org.dom4j.Element
--dontwarn org.dom4j.io.OutputFormat
--dontwarn org.dom4j.io.SAXReader
--dontwarn org.dom4j.io.XMLWriter
--dontwarn org.dom4j.tree.DefaultElement
--dontwarn org.jdom.Attribute
--dontwarn org.jdom.Content
--dontwarn org.jdom.DefaultJDOMFactory
--dontwarn org.jdom.Document
--dontwarn org.jdom.Element
--dontwarn org.jdom.JDOMException
--dontwarn org.jdom.JDOMFactory
--dontwarn org.jdom.Text
--dontwarn org.jdom.input.SAXBuilder
--dontwarn org.jdom2.Attribute
--dontwarn org.jdom2.Content
--dontwarn org.jdom2.DefaultJDOMFactory
--dontwarn org.jdom2.Document
--dontwarn org.jdom2.Element
--dontwarn org.jdom2.JDOMException
--dontwarn org.jdom2.JDOMFactory
--dontwarn org.jdom2.Text
--dontwarn org.jdom2.input.SAXBuilder
--dontwarn org.joda.time.DateTime
--dontwarn org.joda.time.DateTimeZone
--dontwarn org.joda.time.format.DateTimeFormatter
--dontwarn org.joda.time.format.ISODateTimeFormat
--dontwarn org.kxml2.io.KXmlParser
--dontwarn org.xmlpull.mxp1.MXParser
-
-# SimpleXML
--keep interface org.simpleframework.xml.core.Label { public *; }
--keep class * implements org.simpleframework.xml.core.Label { public *; }
--keep interface org.simpleframework.xml.core.Parameter { public *; }
--keep class * implements org.simpleframework.xml.core.Parameter { public *; }
--keep interface org.simpleframework.xml.core.Extractor { public *; }
--keep class * implements org.simpleframework.xml.core.Extractor { public *; }
--keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.Path <fields>; }
--keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.Root <fields>; }
--keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.Text <fields>; }
--keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.Element <fields>; }
--keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.Attribute <fields>; }
--keepclassmembers,allowobfuscation class * { @org.simpleframework.xml.ElementList <fields>; }
-
-# X5 (TBS) SDK
--keep class com.tencent.smtt.** { *; }
--keep class com.tencent.tbs.** { *; }
--dontwarn com.tencent.smtt.**
--dontwarn com.tencent.tbs.**

@@ -9,6 +9,9 @@ import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.event.ServerEvent;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.RegexUtils;
+import com.github.tvbox.osc.util.HawkConfig;
+import com.orhanobut.hawk.Hawk;
+import org.json.JSONObject;
 
 import org.greenrobot.eventbus.EventBus;
 
@@ -57,8 +60,6 @@ public class RemoteServer extends NanoHTTPD {
         getRequestList.add(new RawRequestProcess(this.mContext, "/", R.raw.index, NanoHTTPD.MIME_HTML));
         getRequestList.add(new RawRequestProcess(this.mContext, "/index.html", R.raw.index, NanoHTTPD.MIME_HTML));
         getRequestList.add(new RawRequestProcess(this.mContext, "/style.css", R.raw.style, "text/css"));
-        getRequestList.add(new RawRequestProcess(this.mContext, "/ui.css", R.raw.ui, "text/css"));
-        getRequestList.add(new RawRequestProcess(this.mContext, "/jquery.js", R.raw.jquery, "application/x-javascript"));
         getRequestList.add(new RawRequestProcess(this.mContext, "/script.js", R.raw.script, "application/x-javascript"));
         getRequestList.add(new RawRequestProcess(this.mContext, "/favicon.ico", R.drawable.app_icon, "image/x-icon"));
     }
@@ -69,8 +70,8 @@ public class RemoteServer extends NanoHTTPD {
 
     @Override
     public void start(int timeout, boolean daemon) throws IOException {
-        isStarted = true;
         super.start(timeout, daemon);
+        isStarted = true;
         EventBus.getDefault().post(new ServerEvent(ServerEvent.SERVER_SUCCESS));
     }
 
@@ -82,13 +83,21 @@ public class RemoteServer extends NanoHTTPD {
 
     @Override
     public Response serve(IHTTPSession session) {
-        EventBus.getDefault().post(new ServerEvent(ServerEvent.SERVER_CONNECTION));
+        if (session.getMethod() == Method.GET && ("/".equals(session.getUri())
+                || "/index.html".equals(session.getUri()) || "/api/config".equals(session.getUri()))) {
+            EventBus.getDefault().post(new ServerEvent(ServerEvent.SERVER_CONNECTION));
+        }
         if (!session.getUri().isEmpty()) {
             String fileName = session.getUri().trim();
             if (fileName.indexOf('?') >= 0) {
                 fileName = fileName.substring(0, fileName.indexOf('?'));
             }
             if (session.getMethod() == Method.GET) {
+                if ("/api/config".equals(fileName)) {
+                    String json = "{\"liveUrl\":" + JSONObject.quote(Hawk.get(HawkConfig.LIVE_URL, ""))
+                            + ",\"epgUrl\":" + JSONObject.quote(Hawk.get(HawkConfig.EPG_URL, "")) + "}";
+                    return createJSONResponse(Response.Status.OK, json);
+                }
                 for (RequestProcess process : getRequestList) {
                     if (process.isRequest(session, fileName)) {
                         return process.doResponse(session, fileName, session.getParms(), null);
@@ -134,8 +143,7 @@ public class RemoteServer extends NanoHTTPD {
                 }
             }
         }
-        // default page: index.html
-        return getRequestList.get(0).doResponse(session, "", null, null);
+        return createPlainTextResponse(Response.Status.NOT_FOUND, "接口不存在");
     }
 
     public void setDataReceiver(DataReceiver receiver) {
@@ -152,6 +160,7 @@ public class RemoteServer extends NanoHTTPD {
 
     public String getServerAddress() {
         String ipAddress = getLocalIPAddress(mContext);
+        if ("0.0.0.0".equals(ipAddress)) return "";
         return "http://" + ipAddress + ":" + RemoteServer.serverPort + "/";
     }
 
@@ -164,13 +173,16 @@ public class RemoteServer extends NanoHTTPD {
     }
 
     public static Response createJSONResponse(Response.IStatus status, String text) {
-        return newFixedLengthResponse(status, "application/json", text);
+        Response response = newFixedLengthResponse(status, "application/json; charset=utf-8", text);
+        response.addHeader("Cache-Control", "no-store");
+        return response;
     }
 
     @SuppressLint("DefaultLocale")
     public static String getLocalIPAddress(Context context) {
         WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-        int ipAddress = wifiManager.getConnectionInfo().getIpAddress();
+        int ipAddress = wifiManager == null || wifiManager.getConnectionInfo() == null
+                ? 0 : wifiManager.getConnectionInfo().getIpAddress();
         if (ipAddress == 0) {
             try {
                 Enumeration<NetworkInterface> enumerationNi = NetworkInterface.getNetworkInterfaces();

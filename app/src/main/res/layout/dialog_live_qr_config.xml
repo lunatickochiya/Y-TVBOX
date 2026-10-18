@@ -42,6 +42,16 @@
                 android:textStyle="bold"
                 tools:text="手机扫码打开网页填写直播源/EPG源" />
 
+            <TextView
+                android:id="@+id/tvPushStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/vs_10"
+                android:gravity="center"
+                android:textColor="@color/color_FFFFFF"
+                android:textSize="@dimen/ts_18"
+                android:maxLines="2" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

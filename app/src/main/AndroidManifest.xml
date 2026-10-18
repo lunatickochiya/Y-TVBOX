@@ -16,15 +16,10 @@
     <!-- WiFi: 读取本机 IP / 组播锁(FCC 快速换台) -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <!-- 存储: Android 10 及以下走旧版读写权限, Android 11+ 走"所有文件访问"(备份/字体/推送/远程管理) -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- 存储: Android 10 及以下走旧版读写权限, Android 11+ 走"所有文件访问"(备份/本地字体) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    <!-- XWalk 运行组件下载安装 -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- 应用抽屉里卸载第三方应用(targetSdk 31+ 时必须声明) -->
-    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />    
     <!-- 开机自启进直播 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- 开机自启在 Android 10+ 需要悬浮窗豁免后台启动限制 -->
@@ -33,17 +28,6 @@
     <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS"
         tools:node="remove" />
 
-    <!-- 包可见性声明(Android 11+ 且 targetSdk 30+ 时生效):
-         替代 QUERY_ALL_PACKAGES, 只暴露应用抽屉和第三方播放器需要的包 -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-        <package android:name="com.mxtech.videoplayer.pro" />
-        <package android:name="com.mxtech.videoplayer.ad" />
-        <package android:name="org.xbmc.kodi" />
-    </queries>
 
     <application
         android:name=".base.App"
@@ -59,88 +43,20 @@
         android:theme="@style/AppTheme.NoActionBar"
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
-
-        <activity
-            android:name=".ui.activity.HomeActivity"
-            android:screenOrientation="sensorLandscape"
-            android:exported="false"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" />
-        <activity
-            android:name=".ui.activity.PlayActivity"
-            android:screenOrientation="sensorLandscape"
-            android:supportsPictureInPicture="true"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" />
-        <activity
-            android:name=".ui.activity.DetailActivity"
-            android:screenOrientation="sensorLandscape"
-            android:supportsPictureInPicture="true"
-            android:launchMode="singleTask"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" />
-        <activity
-            android:name=".ui.activity.HistoryActivity"
-            android:screenOrientation="sensorLandscape" />
         <activity
             android:name=".ui.activity.LivePlayActivity"
             android:screenOrientation="sensorLandscape"
             android:exported="true"
             android:supportsPictureInPicture="true"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" >
-            <!-- y-live: 纯直播版, 启动直接进直播界面 -->
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".ui.activity.CollectActivity"
-            android:screenOrientation="sensorLandscape" />
-        <activity
-            android:name=".ui.activity.PushActivity"
-            android:screenOrientation="sensorLandscape" />
-        <activity
-            android:name=".ui.activity.DriveActivity"
-            android:screenOrientation="sensorLandscape" />
-        <activity
-            android:name=".ui.activity.SearchActivity"
-            android:windowSoftInputMode="stateHidden"
-            android:screenOrientation="sensorLandscape" />
-        <activity
-            android:name=".ui.activity.FastSearchActivity"
-            android:windowSoftInputMode="stateHidden"
-            android:screenOrientation="sensorLandscape" 
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation" />
-        <activity
-            android:name=".ui.activity.AppsActivity"
-            android:screenOrientation="sensorLandscape" />
-        <activity
-            android:name=".ui.activity.SettingActivity"
-            android:screenOrientation="sensorLandscape" />
-            
-        <service
-            android:name=".server.PlayService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />    
 
-        <receiver android:name=".receiver.SearchReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.content.movie.search.Action" />
-            </intent-filter>
-        </receiver>
-        <receiver android:name=".receiver.DetailReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.content.movie.detail.Action" />
-            </intent-filter>
-        </receiver>
-        <receiver android:name=".receiver.CustomWebReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.content.movie.custom.web.Action" />
-            </intent-filter>
-        </receiver>
+
         <receiver android:name=".receiver.BootReceiver"
             android:exported="true"
             android:directBootAware="true"
@@ -151,15 +67,6 @@
             </intent-filter>
         </receiver>
 
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
 
         <meta-data
             android:name="design_width_in_dp"
@@ -168,12 +75,6 @@
             android:name="design_height_in_dp"
             android:value="720" />
 
-        <meta-data
-            android:name="xwalk_enable_download_mode"
-            android:value="enable" />
-        <meta-data
-            android:name="xwalk_verify"
-            android:value="disable" />
     </application>
 
 </manifest>

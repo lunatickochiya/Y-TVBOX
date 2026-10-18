@@ -18,10 +18,9 @@
         android:focusable="true"
         android:gravity="center"
         android:padding="@dimen/vs_10"
-        android:singleLine="true"
-        android:text="@{name}"
+        android:maxLines="3"
         android:textColor="@color/color_FFFFFF"
-        android:textSize="@dimen/ts_26"
+        android:textSize="@dimen/ts_18"
         tools:text="11111111111111" />
 
     <ImageView
@@ -37,4 +36,3 @@
         android:src="@drawable/icon_delete" />
 
 </LinearLayout>
-
