@@ -120,6 +120,39 @@ public class LivePlayerManager {
 
     public void changeLivePlayerType(VideoView videoView, int playerType, String channelName) {
         JSONObject playerConfig = currentPlayerConfig;
+        applyPlayerType(playerConfig, playerType);
+        PlayerHelper.updateCfg(videoView, playerConfig);
+
+        if (playerConfig.toString().equals(defaultPlayerConfig.toString()))
+            Hawk.delete(channelName);
+        else
+            Hawk.put(channelName, playerConfig);
+
+        currentPlayerConfig = playerConfig;
+    }
+
+    /**
+     * 临时切换解码(不写入该频道的记忆配置), 用于"软解失败自动回退硬解":
+     * 菜单显示会跟着变, 切走再切回来会恢复用户自己的设置.
+     */
+    public void changeLivePlayerTypeTemp(VideoView videoView, int playerType) {
+        JSONObject playerConfig = new JSONObject();
+        try {
+            playerConfig.put("pl", currentPlayerConfig.getInt("pl"));
+            playerConfig.put("ijk", currentPlayerConfig.getString("ijk"));
+            playerConfig.put("exo", currentPlayerConfig.optString("exo", EXOmPlayer.DECODE_HARD_NAME));
+            playerConfig.put("pr", currentPlayerConfig.getInt("pr"));
+            playerConfig.put("sc", currentPlayerConfig.getInt("sc"));
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        applyPlayerType(playerConfig, playerType);
+        PlayerHelper.updateCfg(videoView, playerConfig);
+        currentPlayerConfig = playerConfig;
+    }
+
+    /** 把「播放解码」菜单下标写进播放配置(0系统/1ijk硬解/2ijk软解/3exo软解/4exo硬解) */
+    private void applyPlayerType(JSONObject playerConfig, int playerType) {
         try {
             switch (playerType) {
                 case 0:
@@ -146,14 +179,6 @@ public class LivePlayerManager {
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        PlayerHelper.updateCfg(videoView, playerConfig);
-
-        if (playerConfig.toString().equals(defaultPlayerConfig.toString()))
-            Hawk.delete(channelName);
-        else
-            Hawk.put(channelName, playerConfig);
-
-        currentPlayerConfig = playerConfig;
     }
 
     public void changeLivePlayerScale(@NonNull VideoView videoView, int playerScale, String channelName){
