@@ -4,7 +4,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
@@ -698,8 +697,6 @@ public class ModelSettingFragment extends BaseLazyFragment {
         });
         // Select App Language ( English / Chinese ) -----------------
         findViewById(R.id.llLocale).setOnClickListener(new View.OnClickListener() {
-            private final int chkLang = Hawk.get(HawkConfig.HOME_LOCALE, 0);
-
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
@@ -731,21 +728,11 @@ public class ModelSettingFragment extends BaseLazyFragment {
                         return oldItem.intValue() == newItem.intValue();
                     }
                 }, types, defaultPos);
-                dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                    @Override
-                    public void onDismiss(DialogInterface dialog) {
-                        if (chkLang != Hawk.get(HawkConfig.HOME_LOCALE, 0)) {
-                            reloadActivity();
-                        }
-                    }
-                });
                 dialog.show();
             }
         });
         // Select App Theme Color -------------------------------------
         findViewById(R.id.llTheme).setOnClickListener(new View.OnClickListener() {
-            private final int chkTheme = Hawk.get(HawkConfig.THEME_SELECT, 0);
-
             @Override
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
@@ -782,14 +769,6 @@ public class ModelSettingFragment extends BaseLazyFragment {
                         return oldItem.intValue() == newItem.intValue();
                     }
                 }, types, defaultPos);
-                dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                    @Override
-                    public void onDismiss(DialogInterface dialog) {
-                        if (chkTheme != Hawk.get(HawkConfig.THEME_SELECT, 0)) {
-                            reloadActivity();
-                        }
-                    }
-                });
                 dialog.show();
             }
         });
@@ -992,18 +971,6 @@ public class ModelSettingFragment extends BaseLazyFragment {
         } else {
             return "樱花";
         }
-    }
-
-    void reloadActivity() {
-        Intent intent = getActivity().getApplicationContext().getPackageManager().getLaunchIntentForPackage(getActivity().getApplication().getPackageName());
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        Bundle bundle = new Bundle();
-        bundle.putBoolean("useCache", true);
-        intent.putExtras(bundle);
-        getActivity().getApplicationContext().startActivity(intent);
-        //  android.os.Process.killProcess(android.os.Process.myPid());
-        //  System.exit(0);
     }
 
 }
