@@ -8,10 +8,12 @@ import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener;
 import androidx.media3.exoplayer.audio.AudioSink;
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.video.VideoRendererEventListener;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegVideoRenderer;
 
@@ -50,9 +52,21 @@ public class LiveExoRenderersFactory extends DefaultRenderersFactory {
                                        MediaCodecSelector mediaCodecSelector, boolean enableDecoderFallback,
                                        AudioSink audioSink, Handler eventHandler,
                                        AudioRendererEventListener eventListener, ArrayList<Renderer> out) {
-        // 音频固定「系统解码(MediaCodec)优先 + FFmpeg 音频软解兜底」:
-        // 音频软解对画质没帮助, 反而在部分机型/流上会出现"有画面没声音", 所以音频不受软解模式影响
-        super.buildAudioRenderers(context, EXTENSION_RENDERER_MODE_ON, mediaCodecSelector, enableDecoderFallback,
+        // 乐视/MStar 的此解码器在配置 MPEG 音频时会触发 ACodec 原生断言(SIGABRT),
+        // 进程直接退出, enableDecoderFallback 无法捕获; 必须在创建 MediaCodec 之前排除.
+        MediaCodecSelector audioCodecSelector = (mimeType, requiresSecureDecoder, requiresTunnelingDecoder) -> {
+            List<MediaCodecInfo> decoders = mediaCodecSelector.getDecoderInfos(
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder);
+            ArrayList<MediaCodecInfo> supported = new ArrayList<>();
+            for (MediaCodecInfo decoder : decoders) {
+                if (!"OMX.google.mstmp3.decoder".equalsIgnoreCase(decoder.name)) {
+                    supported.add(decoder);
+                }
+            }
+            return supported;
+        };
+        // 仍按系统音频优先、FFmpeg 兜底选择, 与视频软/硬解模式无关.
+        super.buildAudioRenderers(context, EXTENSION_RENDERER_MODE_ON, audioCodecSelector, enableDecoderFallback,
                 audioSink, eventHandler, eventListener, out);
     }
 
