@@ -1,6 +1,5 @@
 package com.github.tvbox.osc.ui.activity;
 
-import android.Manifest;
 import android.content.Context;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -64,7 +63,8 @@ import com.github.tvbox.osc.util.DefaultConfig;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.FileUtils;
 import com.github.tvbox.osc.util.HawkConfig;
-import com.github.tvbox.osc.util.LOG;
+import com.github.tvbox.osc.util.HomeSettings;
+import com.github.tvbox.osc.util.LocaleHelper;
 import com.github.tvbox.osc.util.MD5;
 import com.github.tvbox.osc.viewmodel.SourceViewModel;
 import com.orhanobut.hawk.Hawk;
@@ -88,6 +88,8 @@ import java.util.Objects;
 import me.jessyan.autosize.utils.AutoSizeUtils;
 
 public class HomeActivity extends BaseActivity {
+
+    private static final String EXTRA_SETTINGS_RELOAD = "settingsReload";
 
     // takagen99: Added to allow read string
     private static Resources res;
@@ -114,6 +116,13 @@ public class HomeActivity extends BaseActivity {
     private int sortFocused = 0;
     public View sortFocusView = null;
     private final Handler mHandler = new Handler();
+    private final Handler mInitHandler = new Handler();
+    private HomeSettings homeSettings;
+    private boolean restoringHome;
+    private boolean configLoading;
+    private boolean jarLoading;
+    private String pendingConfigError;
+    private TipDialog configErrorDialog;
     private long mExitTime = 0;
     private final Runnable mRunnable = new Runnable() {
         @SuppressLint({"DefaultLocale", "SetTextI18n"})
@@ -136,9 +145,25 @@ public class HomeActivity extends BaseActivity {
     boolean useCacheConfig = false;
 
     @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        boolean settingsReload = getIntent() != null
+                && getIntent().getBooleanExtra(EXTRA_SETTINGS_RELOAD, false);
+        restoringHome = savedInstanceState != null;
+        // A settings reload needs new pager fragments for the new source/recommendations.
+        super.onCreate(settingsReload ? null : savedInstanceState);
+    }
+
+    @Override
     protected void init() {
         // takagen99: Added to allow read string
         res = getResources();
+        Intent intent = getIntent();
+        boolean settingsReload = intent != null && intent.getBooleanExtra(EXTRA_SETTINGS_RELOAD, false);
+        homeSettings = new HomeSettings(readHomeSettings(), !settingsReload && !restoringHome);
+        if (intent != null) {
+            useCacheConfig = intent.getBooleanExtra("useCache", false);
+            intent.removeExtra(EXTRA_SETTINGS_RELOAD);
+        }
 
         // fix: 开机自启依赖 SYSTEM_ALERT_WINDOW 豁免 (Android 10+ 后台启动限制)
         // 若用户开了"开机自启进直播"但未授权悬浮窗, 弹窗引导授权
@@ -159,13 +184,44 @@ public class HomeActivity extends BaseActivity {
         App.startWebserver();
         initView();
         initViewModel();
-        useCacheConfig = false;
-        Intent intent = getIntent();
-        if (intent != null && intent.getExtras() != null) {
-            Bundle bundle = intent.getExtras();
-            useCacheConfig = bundle.getBoolean("useCache", false);
-        }
         initData();
+    }
+
+    private HomeSettings.Snapshot readHomeSettings() {
+        return new HomeSettings.Snapshot(
+                Hawk.get(HawkConfig.API_URL, getString(R.string.app_source)),
+                Hawk.get(HawkConfig.HOME_API, ""),
+                Hawk.get(HawkConfig.HOME_REC, 0),
+                Hawk.get(HawkConfig.THEME_SELECT, 0),
+                Hawk.get(HawkConfig.HOME_LOCALE, 0),
+                Hawk.get(HawkConfig.LIVE_URL, ""));
+    }
+
+    private boolean canContinueInit() {
+        return homeSettings != null && homeSettings.isActive() && !isFinishing();
+    }
+
+    private void postInit(Runnable continuation) {
+        if (!canContinueInit()) return;
+        mInitHandler.postDelayed(() -> {
+            if (canContinueInit()) continuation.run();
+        }, 50);
+    }
+
+    private void reloadForSettings(HomeSettings.Reload reload) {
+        homeSettings.close();
+        mInitHandler.removeCallbacksAndMessages(null);
+        ApiConfig.get().cancelLoads(this);
+        if (reload == HomeSettings.Reload.NETWORK) {
+            SourceViewModel.clearSortCache();
+            ApiConfig.get().clearConfiguration();
+        }
+        LocaleHelper.setLocale(getApplicationContext(), Hawk.get(HawkConfig.HOME_LOCALE, 0) == 0 ? "zh" : "");
+        // recreate() normally retains ViewModels and replays the previous source's sort result.
+        getViewModelStore().clear();
+        getIntent().putExtra("useCache", reload == HomeSettings.Reload.CACHE);
+        getIntent().putExtra(EXTRA_SETTINGS_RELOAD, true);
+        recreate();
     }
 
     // takagen99: Added to allow read string
@@ -403,6 +459,7 @@ public class HomeActivity extends BaseActivity {
         sourceViewModel.sortResult.observe(this, new Observer<AbsSortXml>() {
             @Override
             public void onChanged(AbsSortXml absXml) {
+                if (!canContinueInit()) return;
                 if (skipNextUpdate) {
                     skipNextUpdate = false;
                     return;
@@ -416,7 +473,7 @@ public class HomeActivity extends BaseActivity {
                 initViewPager(absXml);
                 // takagen99 : Switch to show / hide source title
                 SourceBean home = ApiConfig.get().getHomeSourceBean();
-                if (HomeShow) {
+                if (Hawk.get(HawkConfig.HOME_SHOW_SOURCE, false)) {
                     if (home != null && home.getName() != null && !home.getName().isEmpty()) tvName.setText(home.getName());
                         tvName.clearAnimation();
                 }
@@ -427,9 +484,6 @@ public class HomeActivity extends BaseActivity {
     private boolean dataInitOk = false;
     private boolean jarInitOk = false;
 
-    // takagen99 : Switch to show / hide source title
-    boolean HomeShow = Hawk.get(HawkConfig.HOME_SHOW_SOURCE, false);
-
     // takagen99 : Check if network is available
     boolean isNetworkAvailable() {
         ConnectivityManager cm
@@ -439,6 +493,7 @@ public class HomeActivity extends BaseActivity {
     }
 
     private void initData() {
+        if (!canContinueInit()) return;
         // takagen99: If network available, check connected Wifi or Lan
         if (isNetworkAvailable()) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
@@ -461,148 +516,137 @@ public class HomeActivity extends BaseActivity {
         mGridView.requestFocus();
 
         if (dataInitOk && jarInitOk) {
-            sourceViewModel.getSort(ApiConfig.get().getHomeSourceBean().getKey());
-            if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                LOG.e("有");
-            } else {
-                LOG.e("无");
+            if (homeSettings.startHomeIfReady(true)) {
+                sourceViewModel.getSort(ApiConfig.get().getHomeSourceBean().getKey());
+                if (homeSettings.launchDefaultLive(Hawk.get(HawkConfig.HOME_DEFAULT_SHOW, false))) {
+                    jumpActivity(LivePlayActivity.class);
+                }
             }
-            if (Hawk.get(HawkConfig.HOME_DEFAULT_SHOW, false)) {
-                jumpActivity(LivePlayActivity.class);
-            }         
             return;
         }
         tvNameAnimation();
         showLoading();
-        if (dataInitOk && !jarInitOk) {
-            if (!ApiConfig.get().getSpider().isEmpty()) {
-                ApiConfig.get().loadJar(useCacheConfig, ApiConfig.get().getSpider(), new ApiConfig.LoadConfigCallback() {
-                    @Override
-                    public void success() {
-                        jarInitOk = true;
-                        mHandler.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (!useCacheConfig) {
-                                    Toast.makeText(HomeActivity.this, getString(R.string.hm_ok), Toast.LENGTH_SHORT).show();
-                                }
-                                initData();
-                            }
-                        }, 50);
-                    }
-
-                    @Override
-                    public void retry() {
-
-                    }
-
-                    @Override
-                    public void error(String msg) {
-                        jarInitOk = true;
-                        dataInitOk = true;
-                        mHandler.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                if ("".equals(msg))
-                                    Toast.makeText(HomeActivity.this, getString(R.string.hm_notok), Toast.LENGTH_SHORT).show();
-                                else
-                                    Toast.makeText(HomeActivity.this, msg, Toast.LENGTH_SHORT).show();
-                                initData();
-                            }
-                        },50);
-                    }
-                });
+        if (dataInitOk) {
+            if (jarLoading) return;
+            String spider = ApiConfig.get().getSpider();
+            if (spider == null || spider.isEmpty()) {
+                jarInitOk = true;
+                initData();
+                return;
             }
+            jarLoading = true;
+            ApiConfig.get().loadJar(useCacheConfig, spider, new ApiConfig.LoadConfigCallback() {
+                @Override
+                public void success() {
+                    postInit(() -> {
+                        jarLoading = false;
+                        jarInitOk = true;
+                        if (!useCacheConfig && homeSettings.isResumed()) {
+                            Toast.makeText(HomeActivity.this, getString(R.string.hm_ok), Toast.LENGTH_SHORT).show();
+                        }
+                        initData();
+                    });
+                }
+
+                @Override
+                public void retry() {
+                }
+
+                @Override
+                public void error(String msg) {
+                    postInit(() -> {
+                        jarLoading = false;
+                        jarInitOk = true;
+                        if (homeSettings.isResumed()) {
+                            Toast.makeText(HomeActivity.this, msg == null || msg.isEmpty()
+                                    ? getString(R.string.hm_notok) : msg, Toast.LENGTH_SHORT).show();
+                        }
+                        initData();
+                    });
+                }
+            });
             return;
         }
+        if (configLoading || pendingConfigError != null || configErrorDialog != null) return;
+        configLoading = true;
         ApiConfig.get().loadConfig(useCacheConfig, new ApiConfig.LoadConfigCallback() {
-            TipDialog dialog = null;
-
             @Override
             public void retry() {
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        initData();
-                    }
+                postInit(() -> {
+                    configLoading = false;
+                    initData();
                 });
             }
 
             @Override
             public void success() {
-                dataInitOk = true;
-                if (ApiConfig.get().getSpider().isEmpty()) {
-                    jarInitOk = true;
-                }
-                mHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        initData();
-                    }
-                }, 50);
+                if (!canContinueInit()) return;
+                homeSettings.acceptLoadedConfig(Hawk.get(HawkConfig.HOME_API, ""), Hawk.get(HawkConfig.LIVE_URL, ""));
+                postInit(() -> {
+                    configLoading = false;
+                    dataInitOk = true;
+                    String spider = ApiConfig.get().getSpider();
+                    jarInitOk = spider == null || spider.isEmpty();
+                    initData();
+                });
             }
 
             @Override
             public void error(String msg) {
-                if (msg.equalsIgnoreCase("-1")) {
-                    mHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            dataInitOk = true;
-                            jarInitOk = true;
-                            initData();
-                        }
-                    });
-                    return;
-                }
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (dialog == null)
-                            dialog = new TipDialog(HomeActivity.this, msg, getString(R.string.hm_retry), getString(R.string.hm_cancel), new TipDialog.OnListener() {
-                                @Override
-                                public void left() {
-                                    mHandler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            initData();
-                                            dialog.hide();
-                                        }
-                                    });
-                                }
-
-                                @Override
-                                public void right() {
-                                    dataInitOk = true;
-                                    jarInitOk = true;
-                                    mHandler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            initData();
-                                            dialog.hide();
-                                        }
-                                    });
-                                }
-
-                                @Override
-                                public void cancel() {
-                                    dataInitOk = true;
-                                    jarInitOk = true;
-                                    mHandler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            initData();
-                                            dialog.hide();
-                                        }
-                                    });
-                                }
-                            });
-                        if (!dialog.isShowing())
-                            dialog.show();
+                postInit(() -> {
+                    configLoading = false;
+                    if ("-1".equalsIgnoreCase(msg)) {
+                        dataInitOk = true;
+                        jarInitOk = true;
+                        initData();
+                    } else {
+                        pendingConfigError = msg == null ? getString(R.string.hm_notok) : msg;
+                        showConfigError();
                     }
                 });
             }
         }, this);
+    }
+
+    private void showConfigError() {
+        if (!canContinueInit() || !homeSettings.isResumed() || pendingConfigError == null
+                || configErrorDialog != null) return;
+        String message = pendingConfigError;
+        pendingConfigError = null;
+        configErrorDialog = new TipDialog(this, message, getString(R.string.hm_retry),
+                getString(R.string.hm_cancel), new TipDialog.OnListener() {
+            @Override
+            public void left() {
+                dismissConfigError();
+                if (canContinueInit()) initData();
+            }
+
+            @Override
+            public void right() {
+                continueWithoutConfig();
+            }
+
+            @Override
+            public void cancel() {
+                continueWithoutConfig();
+            }
+        });
+        configErrorDialog.show();
+    }
+
+    private void dismissConfigError() {
+        if (configErrorDialog != null) {
+            configErrorDialog.dismiss();
+            configErrorDialog = null;
+        }
+    }
+
+    private void continueWithoutConfig() {
+        dismissConfigError();
+        if (!canContinueInit()) return;
+        dataInitOk = true;
+        jarInitOk = true;
+        initData();
     }
 
     private void initViewPager(AbsSortXml absXml) {
@@ -698,6 +742,18 @@ public class HomeActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (!canContinueInit()) return;
+        HomeSettings.Reload reload = homeSettings.consume(readHomeSettings());
+        if (reload == HomeSettings.Reload.LIVE) {
+            ApiConfig.get().refreshLiveConfig();
+            homeSettings.consume(readHomeSettings());
+            reload = HomeSettings.Reload.NONE;
+        }
+        if (reload != HomeSettings.Reload.NONE) {
+            reloadForSettings(reload);
+            return;
+        }
+        homeSettings.setResumed(true);
 
         // takagen99 : Switch to show / hide source title
         SourceBean home = ApiConfig.get().getHomeSourceBean();
@@ -721,11 +777,15 @@ public class HomeActivity extends BaseActivity {
         } else {
             tvMenu.setVisibility(View.GONE);
         }
+        mHandler.removeCallbacks(mRunnable);
         mHandler.post(mRunnable);
+        showConfigError();
+        if (dataInitOk && jarInitOk) initData();
     }
 
     @Override
     protected void onPause() {
+        homeSettings.setResumed(false);
         super.onPause();
         mHandler.removeCallbacksAndMessages(null);
     }
@@ -854,10 +914,13 @@ public class HomeActivity extends BaseActivity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
+        homeSettings.close();
+        mHandler.removeCallbacksAndMessages(null);
+        mInitHandler.removeCallbacksAndMessages(null);
+        dismissConfigError();
+        ApiConfig.get().cancelLoads(this);
         EventBus.getDefault().unregister(this);
-        AppManager.getInstance().appExit(0);
-        ControlManager.get().stopServer();
+        super.onDestroy();
     }
 
     // Site Switch on Home Button
