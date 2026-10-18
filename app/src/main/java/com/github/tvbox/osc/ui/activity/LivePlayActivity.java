@@ -1212,12 +1212,6 @@ public class LivePlayActivity extends BaseActivity {
         }
     };
 
-    /** 直播设置-备份/恢复设置 */
-    private void showLiveBackupDialog() {
-        LiveBackupDialog dialog = new LiveBackupDialog(this);
-        dialog.show();
-    }
-
     /** 直播设置-分组开关(一键开关整个分组, 如关闭 4K 分组) */
     private void showGroupToggleDialog() {
         List<LiveChannelGroup> all = ApiConfig.get().getChannelGroupList();
