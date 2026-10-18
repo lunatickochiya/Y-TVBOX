@@ -53,6 +53,7 @@ import com.github.tvbox.osc.ui.adapter.LiveEpgDateAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingGroupAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveSettingItemAdapter;
 import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
+import com.github.tvbox.osc.ui.dialog.LiveAboutDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBackupDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
 import com.github.tvbox.osc.ui.dialog.LiveChannelVisibilityDialog;
@@ -1270,6 +1271,12 @@ public class LivePlayActivity extends BaseActivity {
         }
     };
 
+    /** 直播设置-关于(版本/编译时间) */
+    private void showAboutDialog() {
+        LiveAboutDialog dialog = new LiveAboutDialog(this);
+        dialog.show();
+    }
+
     /** 直播设置-备份/恢复设置 */
     private void showLiveBackupDialog() {
         LiveBackupDialog dialog = new LiveBackupDialog(this);
@@ -2049,6 +2056,9 @@ public class LivePlayActivity extends BaseActivity {
                         select = !Hawk.get(HawkConfig.BOOT_START_LIVE, true);
                         Hawk.put(HawkConfig.BOOT_START_LIVE, select);
                         break;
+                    case 8://关于(版本/编译时间/包名)
+                        showAboutDialog();
+                        return;
 //                    case 5:
 //                        // takagen99 : Added Live History list selection - 直播列表
 //                        ArrayList<String> liveHistory = Hawk.get(HawkConfig.LIVE_HISTORY, new ArrayList<String>());
@@ -2321,7 +2331,7 @@ public class LivePlayActivity extends BaseActivity {
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo软解", "exo硬解"));
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
-        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度", "开机自启"));
+        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度", "开机自启", "关于"));
         ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "分组开关", "备份设置"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
