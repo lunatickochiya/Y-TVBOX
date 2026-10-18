@@ -45,6 +45,11 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
         implements MediaPlayerControl, AbstractPlayer.PlayerEventListener {
 
     protected P mMediaPlayer;//播放器
+
+    /** 当前播放器实例(y-live: 用于查询首帧渲染状态等) */
+    public P getPlayer() {
+        return mMediaPlayer;
+    }
     protected PlayerFactory<P> mPlayerFactory;//工厂类，用于实例化播放核心
     @Nullable
     protected BaseVideoController mVideoController;//控制器

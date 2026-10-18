@@ -10,6 +10,8 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 
 import androidx.annotation.NonNull;
+import androidx.media3.common.Format;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
@@ -59,6 +61,13 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     private long lastTotalRxBytes = 0;
     private long lastTimeStamp = 0;
 
+    /** y-live: 是否已经渲染出第一帧(用于检测"有声音没画面"的黑屏) */
+    private volatile boolean mFirstFrameRendered = false;
+
+    public boolean isFirstFrameRendered() {
+        return mFirstFrameRendered;
+    }
+
     private int retriedTimes = 0;
 
     public ExoMediaPlayer(Context context) {
@@ -104,7 +113,7 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
                 : HawkUtils.getExoRendererModeActualValue();
         mRenderersFactory.setExtensionRendererMode(extensionMode);
         mRenderersFactory.setEnableDecoderFallback(true);
-        Log.i("YLive", "Exo initPlayer renderers=" + mRenderersFactory.getClass().getSimpleName()
+        Log.w("YLive", "Exo initPlayer renderers=" + mRenderersFactory.getClass().getSimpleName()
                 + " extensionMode=" + extensionMode);
 
         if (mTrackSelector == null) {
@@ -325,6 +334,32 @@ public class ExoMediaPlayer extends AbstractPlayer implements Player.Listener {
     public void onTracksChanged(Tracks tracks) {
         if (trackNameProvider == null)
             trackNameProvider = new ExoTrackNameProvider(mAppContext.getResources());
+        // y-live: 打印轨道信息, 便于排查"黑屏"(能看出视频编码/分辨率)
+        try {
+            for (Tracks.Group group : tracks.getGroups()) {
+                for (int i = 0; i < group.length; i++) {
+                    Format format = group.getTrackFormat(i);
+                    if (MimeTypes.isVideo(format.sampleMimeType)) {
+                        Log.w("YLive", "视频轨道 mime=" + format.sampleMimeType + " codecs=" + format.codecs
+                                + " " + format.width + "x" + format.height + " fps=" + format.frameRate
+                                + " selected=" + group.isTrackSelected(i));
+                    } else if (MimeTypes.isAudio(format.sampleMimeType)) {
+                        Log.w("YLive", "音频轨道 mime=" + format.sampleMimeType + " codecs=" + format.codecs
+                                + " channels=" + format.channelCount + " selected=" + group.isTrackSelected(i));
+                    } else {
+                        Log.w("YLive", "其它轨道 mime=" + format.sampleMimeType + " selected=" + group.isTrackSelected(i));
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            Log.w("YLive", "打印轨道信息失败: " + e);
+        }
+    }
+
+    @Override
+    public void onRenderedFirstFrame() {
+        mFirstFrameRendered = true;
+        Log.w("YLive", "首帧已渲染");
     }
 
     @Override

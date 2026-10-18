@@ -35,7 +35,7 @@ public class LivePlayerManager {
                     Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD)));
             defaultPlayerConfig.put("pr", Hawk.get(HawkConfig.PLAY_RENDER, 0));
             defaultPlayerConfig.put("sc", Hawk.get(HawkConfig.PLAY_SCALE, 0));
-            android.util.Log.i("YLive", "LivePlayerManager 默认配置 " + defaultPlayerConfig);
+            android.util.Log.w("YLive", "LivePlayerManager 默认配置 " + defaultPlayerConfig);
         } catch (JSONException e) {
             e.printStackTrace();
         }

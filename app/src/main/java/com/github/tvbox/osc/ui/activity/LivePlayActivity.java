@@ -42,6 +42,7 @@ import com.github.tvbox.osc.bean.LiveSettingGroup;
 import com.github.tvbox.osc.bean.LiveSettingItem;
 import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.fcc.FccController;
+import com.github.tvbox.osc.player.EXOmPlayer;
 import com.github.tvbox.osc.player.controller.LiveController;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.ui.adapter.ApiHistoryDialogAdapter;
@@ -1225,7 +1226,7 @@ public class LivePlayActivity extends BaseActivity {
         }
         liveDecodeFallbackTimes = 1;
         Toast.makeText(mContext, "该频道" + reason + ", 已自动切换为「" + decoderName(target) + "」", Toast.LENGTH_LONG).show();
-        android.util.Log.i("YLive", "自动回退解码: " + decoderName(cur) + " -> " + decoderName(target) + " (" + reason + ")");
+        android.util.Log.w("YLive", "自动回退解码: " + decoderName(cur) + " -> " + decoderName(target) + " (" + reason + ")");
         mVideoView.release();
         livePlayerManager.changeLivePlayerTypeTemp(mVideoView, target);
         playLiveUrl(currentLiveChannelItem.getUrl());
@@ -1238,10 +1239,20 @@ public class LivePlayActivity extends BaseActivity {
         @Override
         public void run() {
             if (currentLiveChannelItem == null) return;
-            int[] size = mVideoView.getVideoSize();
-            if (size == null || size.length < 2 || size[0] <= 0 || size[1] <= 0) {
-                tryDecodeFallback("只有声音没有画面");
+            // Exo: 用"是否渲染出首帧"判断(有些流能识别出分辨率但一帧都解不出来)
+            if (mVideoView.getPlayer() instanceof EXOmPlayer) {
+                EXOmPlayer exoPlayer = (EXOmPlayer) mVideoView.getPlayer();
+                android.util.Log.w("YLive", "首帧检测: rendered=" + exoPlayer.isFirstFrameRendered());
+                if (exoPlayer.isFirstFrameRendered()) {
+                    return;
+                }
+            } else {
+                int[] size = mVideoView.getVideoSize();
+                if (size != null && size.length >= 2 && size[0] > 0 && size[1] > 0) {
+                    return;
+                }
             }
+            tryDecodeFallback("只有声音没有画面");
         }
     };
 

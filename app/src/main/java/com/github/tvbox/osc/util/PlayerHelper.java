@@ -53,7 +53,7 @@ public class PlayerHelper {
         if (LegacyPlaybackProfile.isLegacyAndroid(Build.VERSION.SDK_INT)) {
             renderType = LegacyPlaybackProfile.defaultRenderType(Build.VERSION.SDK_INT);
         }
-        android.util.Log.i("YLive", "updateCfg pl=" + playerType + " ijk=" + ijkCode + " exo=" + exoDecode
+        android.util.Log.w("YLive", "updateCfg pl=" + playerType + " ijk=" + ijkCode + " exo=" + exoDecode
                 + " render=" + renderType + " scale=" + scale);
         IJKCode codec = ApiConfig.get().getIJKCodec(ijkCode);
         PlayerFactory playerFactory;
