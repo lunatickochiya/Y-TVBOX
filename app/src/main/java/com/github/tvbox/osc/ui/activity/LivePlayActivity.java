@@ -242,6 +242,19 @@ public class LivePlayActivity extends BaseActivity {
         } else {
             fccController.stop();
         }
+        android.util.Log.w("YLive", "开始播放: " + playUrl);
+        if (currentLiveChannelItem != null) {
+            android.util.Log.w("YLive", "频道解析: name=" + currentLiveChannelItem.getChannelName()
+                    + " num=" + currentLiveChannelItem.getChannelNum()
+                    + " sourceNum=" + currentLiveChannelItem.getSourceNum()
+                    + " sourceIndex=" + currentLiveChannelItem.getSourceIndex()
+                    + " urls=" + currentLiveChannelItem.getChannelUrls());
+        }
+        if (playUrl == null || playUrl.isEmpty()) {
+            // 直播源里这个频道没有可用地址(空行/全是注释行/被改错都会这样), 给提示而不是留黑屏
+            Toast.makeText(mContext, "「" + (currentLiveChannelItem != null ? currentLiveChannelItem.getChannelName() : "") + "」在直播源里没有可用地址", Toast.LENGTH_LONG).show();
+            return;
+        }
         mVideoView.setUrl(playUrl, setPlayHeaders(url));
     }
 
@@ -455,24 +468,25 @@ public class LivePlayActivity extends BaseActivity {
             tvSelectedChannel.setVisibility(View.GONE);
             tvSelectedChannel.setText("");
 
-            int grpIndx = 0;
-            int chaIndx = 0;
-            int getMin = 1;
-            int getMax;
-            for (int j = 0; j < 20; j++) {
-                getMax = getMin + getLiveChannels(j).size() - 1;
-
-                if (selectedChannelNumber >= getMin && selectedChannelNumber <= getMax) {
-                    grpIndx = j;
-                    chaIndx = selectedChannelNumber - getMin + 1;
-                    break;
-                } else {
-                    getMin = getMax + 1;
+            // 频道号是「全部频道」的编号(loadLives 里编好的), 隐藏分组/频道后编号不变,
+            // 所以这里按频道自己的 channelNum 匹配, 不能用"第几个可见频道"去数,
+            // 否则隐藏了 4K 分组后输入 42 会跳到别的台。
+            int grpIndx = -1;
+            int chaIndx = -1;
+            for (int j = 0; j < liveChannelGroupList.size(); j++) {
+                List<LiveChannelItem> channels = getLiveChannels(j);
+                for (int i = 0; i < channels.size(); i++) {
+                    if (channels.get(i).getChannelNum() == selectedChannelNumber) {
+                        grpIndx = j;
+                        chaIndx = i;
+                        break;
+                    }
                 }
+                if (grpIndx >= 0) break;
             }
 
-            if (selectedChannelNumber > 0) {
-                playChannel(grpIndx, chaIndx - 1, false);
+            if (selectedChannelNumber > 0 && grpIndx >= 0) {
+                playChannel(grpIndx, chaIndx, false);
             }
             selectedChannelNumber = 0;
         }
@@ -1402,6 +1416,7 @@ public class LivePlayActivity extends BaseActivity {
 
             @Override
             public void playStateChanged(int playState) {
+                android.util.Log.w("YLive", "播放状态: " + playState);
                 switch (playState) {
                     case VideoView.STATE_IDLE:
                     case VideoView.STATE_PAUSED:
