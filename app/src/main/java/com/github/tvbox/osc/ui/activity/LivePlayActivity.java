@@ -425,11 +425,11 @@ public class LivePlayActivity extends BaseActivity {
                 return false;
             }
         });
-        // Button: BACK click to go back to previous page -------------------
+        // Button: BACK click exits the live task ---------------------------
         mBack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                finish();
+                finishAndRemoveTask();
             }
         });
     }
@@ -450,33 +450,11 @@ public class LivePlayActivity extends BaseActivity {
 
     @Override
     public void onBackPressed() {
-        if (tvLeftChannelListLayout.getVisibility() == View.VISIBLE) {
-            mHandler.removeCallbacks(mHideChannelListRun);
-            mHandler.post(mHideChannelListRun);
-        } else if (tvRightSettingLayout.getVisibility() == View.VISIBLE) {
-            mHandler.removeCallbacks(mHideSettingLayoutRun);
-            mHandler.post(mHideSettingLayoutRun);
-        } else if (tvBottomLayout.getVisibility() == View.VISIBLE) {
-            mHandler.removeCallbacks(mHideChannelInfoRun);
-            mHandler.post(mHideChannelInfoRun);
-        } else {
-            mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
-            mHandler.removeCallbacks(mUpdateNetSpeedRun);
-            mHandler.removeCallbacks(mUpdateTimeRun);
-            mHandler.removeCallbacks(tv_sys_timeRunnable);
-            exit();
-        }
-    }
-
-    private long mExitTime = 0;
-
-    private void exit() {
-        if (System.currentTimeMillis() - mExitTime < 2000) {
-            super.onBackPressed();
-        } else {
-            mExitTime = System.currentTimeMillis();
-            Toast.makeText(mContext, getString(R.string.hm_exit_live), Toast.LENGTH_SHORT).show();
-        }
+        mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
+        mHandler.removeCallbacks(mUpdateNetSpeedRun);
+        mHandler.removeCallbacks(mUpdateTimeRun);
+        mHandler.removeCallbacks(tv_sys_timeRunnable);
+        finishAndRemoveTask();
     }
 
     private final Runnable mPlaySelectedChannel = new Runnable() {

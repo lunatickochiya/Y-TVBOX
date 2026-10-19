@@ -8,6 +8,8 @@ import com.github.tvbox.osc.R;
 
 import org.jetbrains.annotations.NotNull;
 
+import xyz.doikki.videoplayer.util.PlayerUtils;
+
 /**
  * 直播控制器
  */
@@ -99,6 +101,7 @@ public class LiveController extends BaseController {
 
     @Override
     public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+        if (PlayerUtils.isEdge(getContext(), e1)) return false;
         if (e1.getX() - e2.getX() > minFlingDistance && Math.abs(velocityX) > minFlingVelocity) {
             listener.changeSource(-1);          //左滑
         } else if (e2.getX() - e1.getX() > minFlingDistance && Math.abs(velocityX) > minFlingVelocity) {
