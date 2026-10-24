@@ -454,15 +454,12 @@ public class LivePlayActivity extends BaseActivity {
 
     @Override
     public void onBackPressed() {
-        // 电视/遥控器保持一次返回退出; 触屏手机要求连续两次侧滑/返回, 避免误触直接退出。
-        if (!supportsTouch()) {
-            exitLive();
-            return;
-        }
+        // 触屏侧滑和遥控器返回都要求连续两次, 避免误触直接退出。
         long now = System.currentTimeMillis();
         if (now - mLastBackPressedTime > EXIT_BACK_INTERVAL) {
             mLastBackPressedTime = now;
-            Toast.makeText(mContext, getString(R.string.hm_exit_live), Toast.LENGTH_SHORT).show();
+            int hint = supportsTouch() ? R.string.hm_exit_live : R.string.hm_exit_live_back;
+            Toast.makeText(mContext, getString(hint), Toast.LENGTH_SHORT).show();
             return;
         }
         mLastBackPressedTime = 0L;
