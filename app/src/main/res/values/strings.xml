@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Y-Live</string>
+    <string name="hm_exit_live">Swipe from the edge again to exit LiveTV</string>
     <string name="dia_history_live">Live History List</string>
     <string name="dia_bkres">Backup / Restore</string>
     <string name="dia_bkpkg">Select Backup Package</string>

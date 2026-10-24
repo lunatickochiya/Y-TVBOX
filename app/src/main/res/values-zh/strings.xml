@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Y-Live</string>
+    <string name="hm_exit_live">再侧滑一次退出直播</string>
     <string name="dia_history_live">直播历史列表</string>
     <string name="dia_bkres">数据备份还原</string>
     <string name="dia_bkpkg">点击下方数据还原</string>

@@ -119,6 +119,10 @@ public class LivePlayActivity extends BaseActivity {
     private VideoView mVideoView;
     private LiveController controller;
 
+    // 连续两次返回(侧滑/返回键)才退出直播, 避免误触直接退出
+    private static final long EXIT_BACK_INTERVAL = 2000L;
+    private long mLastBackPressedTime = 0L;
+
     // FCC (Fast Channel Change)
     private FccController fccController;
     private boolean fccBypassOnce = false;
@@ -429,7 +433,7 @@ public class LivePlayActivity extends BaseActivity {
         mBack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                finishAndRemoveTask();
+                exitLive();
             }
         });
     }
@@ -450,6 +454,22 @@ public class LivePlayActivity extends BaseActivity {
 
     @Override
     public void onBackPressed() {
+        // 电视/遥控器保持一次返回退出; 触屏手机要求连续两次侧滑/返回, 避免误触直接退出。
+        if (!supportsTouch()) {
+            exitLive();
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - mLastBackPressedTime > EXIT_BACK_INTERVAL) {
+            mLastBackPressedTime = now;
+            Toast.makeText(mContext, getString(R.string.hm_exit_live), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        mLastBackPressedTime = 0L;
+        exitLive();
+    }
+
+    private void exitLive() {
         mHandler.removeCallbacks(mConnectTimeoutChangeSourceRun);
         mHandler.removeCallbacks(mUpdateNetSpeedRun);
         mHandler.removeCallbacks(mUpdateTimeRun);
@@ -561,6 +581,7 @@ public class LivePlayActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         playbackPaused = false;
+        mLastBackPressedTime = 0L;
         if (mVideoView != null) {
             mVideoView.resume();
             restorePlaybackChecks();
