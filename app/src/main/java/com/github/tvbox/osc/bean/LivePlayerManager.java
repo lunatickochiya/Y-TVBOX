@@ -53,9 +53,21 @@ public class LivePlayerManager {
     public void getLiveChannelPlayer(VideoView videoView, String channelName) {
         JSONObject playerConfig = Hawk.get(channelName, null);
         if (playerConfig == null) {
-            savedPlayerConfig = copyConfig(defaultPlayerConfig);
-            if (!currentPlayerConfig.toString().equals(defaultPlayerConfig.toString()))
-                getDefaultLiveChannelPlayer(videoView);
+            // 频道没有单独记忆: 沿用上一个频道的解码方式, 不要跳回全局默认的 exo软解.
+            // 用 savedPlayerConfig 而不是 currentPlayerConfig: 软解失败时的临时硬解回退
+            // 只对当前频道有效, 不能带到下一个频道.
+            JSONObject inherited = copyConfig(defaultPlayerConfig);
+            copyDecoder(savedPlayerConfig, inherited);
+            int inheritedType = livePlayerTypeOf(inherited);
+            if (inheritedType != livePlayerTypeOf(defaultPlayerConfig)) {
+                // 把沿用的解码方式记成默认, 下次启动/再切台仍然是同一个解码.
+                rememberPlayerTypeAsDefault(inheritedType);
+            }
+            savedPlayerConfig = copyConfig(inherited);
+            if (!currentPlayerConfig.toString().equals(inherited.toString())) {
+                PlayerHelper.updateCfg(videoView, inherited);
+            }
+            currentPlayerConfig = inherited;
             return;
         }
         savedPlayerConfig = copyConfig(playerConfig);
@@ -122,9 +134,14 @@ public class LivePlayerManager {
     public void changeLivePlayerType(VideoView videoView, int playerType, String channelName) {
         JSONObject playerConfig = copyConfig(currentPlayerConfig);
         applyPlayerType(playerConfig, playerType);
+        // 手动选择的解码方式同时作为全局默认: 切到没有单独记忆的频道时继续使用,
+        // 否则会跳回 App 初始的 exo软解.
+        rememberPlayerTypeAsDefault(playerType);
         PlayerHelper.updateCfg(videoView, playerConfig);
         savedPlayerConfig = copyConfig(playerConfig);
-        saveChannelConfig(channelName, savedPlayerConfig);
+        // 显式选择始终记到该频道: 即使当前等于全局默认也要写入,
+        // 这样以后在别的频道改解码, 不会把这里的频道记忆一起改掉.
+        Hawk.put(channelName, savedPlayerConfig);
         currentPlayerConfig = playerConfig;
     }
 
@@ -173,6 +190,63 @@ public class LivePlayerManager {
                     playerConfig.put("exo", EXOmPlayer.DECODE_HARD_NAME);
                     break;
             }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /** 播放配置对应的「播放解码」菜单下标(0系统/1ijk硬解/2ijk软解/3exo软解/4exo硬解) */
+    private int livePlayerTypeOf(JSONObject playerConfig) {
+        if (playerConfig == null) return 0;
+        int playerType = playerConfig.optInt("pl", 0);
+        if (playerType == 1) {
+            return "硬解码".equals(playerConfig.optString("ijk")) ? 1 : 2;
+        }
+        if (playerType == 2) {
+            String exoDecode = playerConfig.has("exo")
+                    ? playerConfig.optString("exo")
+                    : EXOmPlayer.decodeNameOf(Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD));
+            return EXOmPlayer.decodeModeOf(exoDecode) == EXOmPlayer.DECODER_SOFT ? 3 : 4;
+        }
+        return 0;
+    }
+
+    /**
+     * 用户手动选择的解码方式同时记成全局默认, 切到没有单独记忆的频道时沿用.
+     * 只改解码相关字段, 不动 defaultPlayerConfig 里的画面比例.
+     */
+    private void rememberPlayerTypeAsDefault(int playerType) {
+        switch (playerType) {
+            case 0:
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 0);
+                break;
+            case 1:
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 1);
+                Hawk.put(HawkConfig.IJK_CODEC, "硬解码");
+                break;
+            case 2:
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 1);
+                Hawk.put(HawkConfig.IJK_CODEC, "软解码");
+                break;
+            case 3:
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 2);
+                Hawk.put(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_SOFT);
+                break;
+            case 4:
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 2);
+                Hawk.put(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD);
+                break;
+        }
+        applyPlayerType(defaultPlayerConfig, playerType);
+        android.util.Log.w("YLive", "默认解码更新: " + defaultPlayerConfig);
+    }
+
+    private void copyDecoder(JSONObject source, JSONObject target) {
+        if (source == null) return;
+        try {
+            if (source.has("pl")) target.put("pl", source.getInt("pl"));
+            if (source.has("ijk")) target.put("ijk", source.getString("ijk"));
+            if (source.has("exo")) target.put("exo", source.getString("exo"));
         } catch (JSONException e) {
             e.printStackTrace();
         }
