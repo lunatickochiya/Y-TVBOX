@@ -6,6 +6,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.Resources;
+import android.graphics.Insets;
 import android.graphics.Point;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -18,6 +19,7 @@ import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
@@ -102,11 +104,33 @@ public final class PlayerUtils {
     }
 
     /**
+     * 获取真实屏幕尺寸(包含导航栏/系统手势区域)。
+     * 不能再用 widthPixels + navigation_bar_height 估算: 横屏时导航栏占的是宽度,
+     * 在全面屏手势下 navigation_bar_height 还会被重复计算, 导致右边缘判断偏移,
+     * 从右边缘侧滑会被误判成应用内的左右滑动(换源)。
+     */
+    @SuppressWarnings("deprecation")
+    private static void getRealScreenSize(Context context, Point out) {
+        WindowManager windowManager = getWindowManager(context);
+        if (windowManager != null) {
+            Display display = windowManager.getDefaultDisplay();
+            if (display != null) {
+                display.getRealSize(out);
+                return;
+            }
+        }
+        out.set(context.getResources().getDisplayMetrics().widthPixels,
+                context.getResources().getDisplayMetrics().heightPixels);
+    }
+
+    /**
      * 获取屏幕宽度
      */
     public static int getScreenWidth(Context context, boolean isIncludeNav) {
         if (isIncludeNav) {
-            return context.getResources().getDisplayMetrics().widthPixels + getNavigationBarHeight(context);
+            Point size = new Point();
+            getRealScreenSize(context, size);
+            return size.x;
         } else {
             return context.getResources().getDisplayMetrics().widthPixels;
         }
@@ -117,7 +141,9 @@ public final class PlayerUtils {
      */
     public static int getScreenHeight(Context context, boolean isIncludeNav) {
         if (isIncludeNav) {
-            return context.getResources().getDisplayMetrics().heightPixels + getNavigationBarHeight(context);
+            Point size = new Point();
+            getRealScreenSize(context, size);
+            return size.y;
         } else {
             return context.getResources().getDisplayMetrics().heightPixels;
         }
@@ -158,14 +184,43 @@ public final class PlayerUtils {
     }
 
     /**
+     * 系统手势(返回/主屏幕)边缘区域宽度。
+     * Android 10+ 返回手势从左右边缘向内滑, 厂商的识别区域可能比 AOSP 的 40dp 更宽,
+     * 用固定值判断会漏掉一部分边缘, 导致侧滑返回被应用当成换源手势。
+     */
+    public static int getSystemGestureEdge(Context context) {
+        // 回退值用系统 density 计算物理 48dp, 避免被 autosize 的屏幕适配 density 缩小。
+        int edgeSize = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 48,
+                Resources.getSystem().getDisplayMetrics());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Activity activity = scanForActivity(context);
+            if (activity != null) {
+                WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
+                if (insets != null) {
+                    // systemGestureInsets 包含左右返回手势区域;
+                    // mandatorySystemGestureInsets 主要是底部主屏幕手势区域。
+                    Insets gesture = insets.getSystemGestureInsets();
+                    Insets mandatory = insets.getMandatorySystemGestureInsets();
+                    edgeSize = Math.max(edgeSize, Math.max(
+                            Math.max(gesture.left, gesture.right),
+                            Math.max(mandatory.left, mandatory.right)));
+                }
+            }
+        }
+        return edgeSize;
+    }
+
+    /**
      * 边缘检测
      */
     public static boolean isEdge(Context context, MotionEvent e) {
-        int edgeSize = dp2px(context, 40);
+        int edgeSize = getSystemGestureEdge(context);
+        Point realSize = new Point();
+        getRealScreenSize(context, realSize);
         return e.getRawX() < edgeSize
-                || e.getRawX() > getScreenWidth(context, true) - edgeSize
+                || e.getRawX() > realSize.x - edgeSize
                 || e.getRawY() < edgeSize
-                || e.getRawY() > getScreenHeight(context, true) - edgeSize;
+                || e.getRawY() > realSize.y - edgeSize;
     }
 
 

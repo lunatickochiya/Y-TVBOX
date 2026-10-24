@@ -101,7 +101,11 @@ public class LiveController extends BaseController {
 
     @Override
     public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-        if (PlayerUtils.isEdge(getContext(), e1)) return false;
+        if (e1 == null || e2 == null) return false;
+        // 系统返回手势从屏幕左右边缘向内滑，不能把它当成应用内的左右滑动换源。
+        // 部分手机的返回手势识别区域比固定 dp 更宽，这里同时用系统手势 insets
+        // 和控件自身宽高判断，避免“右边缘侧滑返回”变成“上一个台”。
+        if (isEdgeStart(e1)) return false;
         if (e1.getX() - e2.getX() > minFlingDistance && Math.abs(velocityX) > minFlingVelocity) {
             listener.changeSource(-1);          //左滑
         } else if (e2.getX() - e1.getX() > minFlingDistance && Math.abs(velocityX) > minFlingVelocity) {
@@ -110,5 +114,17 @@ public class LiveController extends BaseController {
         } else if (e2.getY() - e1.getY() > minFlingDistance && Math.abs(velocityY) > minFlingVelocity) {
         }
         return false;
+    }
+
+    /** 手势起点是否落在系统手势(返回/主屏幕)区域。 */
+    private boolean isEdgeStart(MotionEvent e) {
+        if (PlayerUtils.isEdge(getContext(), e)) return true;
+        int width = getWidth();
+        int height = getHeight();
+        if (width <= 0 || height <= 0) return false;
+        int edge = PlayerUtils.getSystemGestureEdge(getContext());
+        float x = e.getX();
+        float y = e.getY();
+        return x < edge || x > width - edge || y < edge || y > height - edge;
     }
 }
