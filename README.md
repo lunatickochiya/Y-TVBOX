@@ -2,24 +2,25 @@
 
 Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox 同时安装。
 
-> **Android 版本要求**：`main` 分支的 exo 软解已升级到 nextlib 1.11.1（最低 API 23 /
-> Android 6.0），并新增 MPV 版。Android 5.0/5.1 设备请使用 `live-android-5`
-> 分支（保留旧解码栈，minSdk 21）。
+> **Android 版本要求**：`main` 分支保持 Android 5.0（API 21）兼容，使用
+> media3 1.3.1 + nextlib 0.7.1 的旧 exo 解码栈；花屏频道可切「mpv软解」。
+> 需要 nextlib 1.11 新 exo 软解（要求 Android 6.0 / API 23）的设备请使用
+> `live` 分支；Android 5 专用精简版是 `live-android-5`。
 
-## 解码器（exo 花屏修复 / MPV）
+## 解码器（Android 5 兼容 / MPV）
 
-- **exo 软解/硬解**：升级到 media3 1.11.1 + nextlib 1.11.1，修复旧版 FFmpeg 软解的
-  Surface 颜色（YV12/绿屏/花屏）、Surface CPU 连接未释放和输出帧清理问题；硬解不支持
-  的编码/音频仍自动回退 FFmpeg。
+- **exo 软解/硬解**：`main` 使用 Android 5 兼容的 media3 1.3.1 + nextlib 0.7.1；
+  硬解不支持的编码/音频会回退 FFmpeg。nextlib 1.11 的新 exo 花屏修复要求 API 23，
+  因此只放在 `live` 分支。
 - **音频兜底**：系统 MediaCodec 不支持 AC3 / EAC3 / DTS / TrueHD 时，用 nextlib 的
   FFmpeg 音频解码（点播默认 Exo 也保留该兜底）。
 - **MPV 版 APK**：文件名带 `-mpv`，额外内置 libmpv，直播「播放解码」会多出
   **mpv硬解 / mpv软解**。mpv 硬解使用 `mediacodec-copy`（兼容性优先），mpv 软解是纯
   FFmpeg；遇到 exo/系统硬解花屏的频道可直接切 MPV 对比。
 - MPV 原生库同时支持 **armeabi-v7a** 与 **arm64-v8a**；发布工作流两个 ABI 的
-  MPV 版都会构建（armeabi 约 45MB，arm64 约 47MB）。
+  MPV 版都会构建（armeabi 约 43MB，arm64 约 47MB）。
 - 标准版与 MPV 版**同包名、同签名**，可直接覆盖安装并保留设置；标准版安装包约
-  29MB，MPV 版约 47MB（arm64 release）。
+  26MB（armeabi）/ 29MB（arm64），MPV 版约 43MB / 47MB。
 
 ## GitHub Release
 

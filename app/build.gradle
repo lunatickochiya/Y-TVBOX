@@ -38,8 +38,9 @@ android {
 
     defaultConfig {
         applicationId 'com.github.ytvbox.osc'
-        // media3 1.11 / nextlib 1.11 最低要求 API 23
-        minSdkVersion 23
+        // main 分支保持 Android 5.0(API 21) 兼容: 使用 media3 1.3.1 + nextlib 0.7.1。
+        // 新 exo 软解(nextlib 1.11)要求 API 23, 仅在 live 分支使用。
+        minSdkVersion 21
         targetSdkVersion 28
         versionCode 1
         versionName "1.0.".concat(buildTime())
@@ -261,7 +262,7 @@ dependencies {
         exclude group: 'androidx.lifecycle', module: 'lifecycle-common'
         exclude group: 'androidx.lifecycle', module: 'lifecycle-process'
     }
-    // Keep Gecko builds compatible with compileSdk 36 / AGP 8.9.1 and the API 23 baseline.
+    // Keep Gecko builds compatible with compileSdk 36 / AGP 8.9.1 and the API 21 baseline.
     geckoImplementation 'androidx.annotation:annotation-experimental:1.4.1'
     geckoImplementation 'androidx.core:core:1.13.1'
     geckoImplementation 'androidx.core:core-ktx:1.13.1'
@@ -287,15 +288,15 @@ dependencies {
     implementation 'com.orhanobut:hawk:2.0.1'
     implementation 'net.sourceforge.streamsupport:android-retrofuture:1.7.4'
     implementation 'androidx.annotation:annotation:1.8.2'
-    implementation "androidx.media3:media3-exoplayer:1.11.1"
-    implementation "androidx.media3:media3-ui:1.11.1"
-    implementation "androidx.media3:media3-exoplayer-dash:1.11.1"
-    implementation "androidx.media3:media3-exoplayer-hls:1.11.1"
-    implementation "androidx.media3:media3-exoplayer-rtsp:1.11.1"
-    implementation "androidx.media3:media3-datasource-rtmp:1.11.1"
-    implementation 'androidx.media3:media3-common:1.11.1'
-    // nextlib 1.11.1 修复 FFmpeg 软解 Surface 颜色/清理问题(exo 花屏)
-    implementation "io.github.anilbeesetti:nextlib-media3ext:1.11.1-0.16.0"
+    implementation "androidx.media3:media3-exoplayer:1.3.1"
+    implementation "androidx.media3:media3-ui:1.3.1"
+    implementation "androidx.media3:media3-exoplayer-dash:1.3.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.3.1"
+    implementation "androidx.media3:media3-exoplayer-rtsp:1.3.1"
+    implementation "androidx.media3:media3-datasource-rtmp:1.3.1"
+    implementation 'androidx.media3:media3-common:1.3.1'
+    // Android 5 兼容的旧 exo 软解栈; 花屏频道可切 MPV 软解
+    implementation "com.github.anilbeesetti.nextlib:nextlib-media3ext:0.7.1"
 
 
 
