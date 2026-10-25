@@ -2,14 +2,17 @@
 buildscript {
     ext.kotlin_version = "2.2.10"
     repositories {
+        // 官方源必须排在最前：Gradle 遇到镜像返回 5xx 会直接中断解析，
+        // 而 androidx/AGP 只发布在 Google Maven，镜像并不托管（或偶发 502 Bad Gateway）。
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+        // 以下镜像仅作兜底，加快国内网络下的下载速度
         maven { url "https://maven.aliyun.com/repository/public" }
         maven { url "https://maven.aliyun.com/repository/central" }
         maven { url "https://maven.aliyun.com/repository/google" }
         maven { url "https://maven.aliyun.com/repository/releases" }
         maven { url "https://maven.aliyun.com/repository/gradle-plugin" }
-        google()
-        mavenCentral()
-        gradlePluginPortal()
         maven { url "https://jitpack.io" }
         maven { url "https://storage.googleapis.com/r8-releases/raw" }
         maven { url "https://chaquo.com/maven" }
@@ -27,14 +30,15 @@ buildscript {
 
 allprojects {
     repositories {
+        // 与 buildscript 保持一致：官方源优先，镜像兜底（见文件顶部说明）
+        google()
+        mavenCentral()
+        gradlePluginPortal()
         maven { url "https://maven.aliyun.com/repository/public" }
         maven { url "https://maven.aliyun.com/repository/central" }
         maven { url "https://maven.aliyun.com/repository/google" }
         maven { url "https://maven.aliyun.com/repository/releases" }
         maven { url "https://maven.aliyun.com/repository/gradle-plugin" }
-        google()
-        mavenCentral()
-        gradlePluginPortal()
         maven { url "https://jitpack.io" }
         maven { url "https://maven.mozilla.org/maven2/" }
     }
