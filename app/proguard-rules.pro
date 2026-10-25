@@ -171,6 +171,11 @@
 -keep class com.google.gson.** { *; }
 -keep class com.google.zxing.** { *; }
 
+# libmpv JNI 与事件回调
+-keep class is.xyz.mpv.** { *; }
+-keepclassmembers class is.xyz.mpv.** { native <methods>; }
+-dontwarn is.xyz.mpv.**
+
 # 旧版 Android TLS 实现(SSLCompat)
 -dontwarn com.android.org.conscrypt.SSLParametersImpl
 -dontwarn org.apache.harmony.xnet.provider.jsse.SSLParametersImpl

@@ -11,7 +11,12 @@ y-live 是 Y-TVBOX 的**纯直播版**：应用 ID 为 `com.github.ylive.osc`，
 
 ## 直播解码（更多解码器 / 软硬解可选）
 
-直播设置「播放解码」可选 **系统 / ijk硬解 / ijk软解 / exo软解 / exo硬解**（默认 exo软解）：
+> 本分支为 **Android 5.0/5.1 兼容分支**：保持 minSdk 21 和旧 exo 解码栈
+> （media3 1.3.1 + nextlib 0.7.1），不包含 live/main 分支上要求 API 23 的
+> nextlib 1.11 花屏修复。需要新 exo 软解的设备请使用 `live` / `main`。
+
+直播设置「播放解码」可选 **系统 / ijk硬解 / ijk软解 / exo软解 / exo硬解**，
+MPV 版 APK 还会多出 **mpv硬解 / mpv软解**（默认 exo软解）：
 
 | 选项 | 说明 |
 | --- | --- |
@@ -20,6 +25,8 @@ y-live 是 Y-TVBOX 的**纯直播版**：应用 ID 为 `com.github.ylive.osc`，
 | ijk软解 | IJK（FFmpeg）软件解码，直播参数按低内存调优（关闭 soundtouch、限制输入缓冲） |
 | exo软解 | Exo 优先用内置 FFmpeg 软解：视频 H.264 / H.265 / MPEG2 / VP8 / VP9，音频 AC3 / EAC3 / DTS / TrueHD / Opus / FLAC / ALAC 等 |
 | exo硬解 | Exo 优先硬件解码（MediaCodec），FFmpeg 软解作为兜底（硬解不支持的编码/音频自动转软解） |
+| mpv硬解 | libmpv 用 MediaCodec 解码后拷贝到 GPU（`mediacodec-copy`），兼容性优先 |
+| mpv软解 | libmpv 纯 FFmpeg 软解，适合硬解花屏/绿屏的频道，CPU 占用较高 |
 
 exo 软解/硬解共用同一套渲染器（系统硬解 + FFmpeg 软解），区别只在软解优先级：
 软解 = FFmpeg 优先，硬解 = MediaCodec 优先、FFmpeg 兜底。软解渲染器做了省内存处理：
@@ -28,6 +35,15 @@ Exo 直播缓冲区也限制在 2s~20s / 24MB 以内并关闭回看缓冲。
 
 手动切换解码后会作为默认沿用，切台不会跳回 exo软解；为单个频道单独选过解码的，
 仍优先使用该频道的记忆。软解失败时的自动回退（软解 → 硬解）只是临时生效，不会影响其他频道。
+
+### 标准版 / MPV 版 APK
+
+- **标准版**（文件名不带 `-mpv`）：保持精简，内置 exo/ijk/系统播放器。
+- **MPV 版**（文件名带 `-mpv`）：额外内置 libmpv 及其 FFmpeg 原生库，多出
+  「mpv硬解 / mpv软解」两个选项，安装包大约增加 18MB/ABI。
+- MPV 版与标准版**同包名、同签名**，可以直接覆盖安装并保留直播源/设置。
+- 构建 MPV 版需要 `patchelf`（工作流会自动安装），用于把 libmpv 自带的 FFmpeg
+  库改名，避免与 nextlib 的 `libavcodec.so` 等重名。
 
 ## 直播源 / EPG 源配置（扫码 + 历史记录）
 
@@ -66,8 +82,9 @@ Exo 直播缓冲区也限制在 2s~20s / 24MB 以内并关闭回看缓冲。
 
 ## GitHub Release
 
-发布工作流只构建 `armeabi-v7a` 与 `arm64-v8a` 两个签名 APK（文件名 `Y-LIVE_...`）。
-进入仓库的 Actions 页面，选择 `Y-LIVE`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
+发布工作流构建 `armeabi-v7a` / `arm64-v8a` 的标准版与 MPV 版共 4 个签名 APK
+（文件名 `Y-LIVE_...`，MPV 版带 `-mpv`）。进入仓库的 Actions 页面，选择 `Y-LIVE`，
+点击 `Run workflow` 即可构建并上传到 GitHub Release。
 
 未配置签名时，工作流会生成临时签名以完成构建和发布；不同运行生成的临时签名不同，APK 可能无法直接覆盖升级。正式发布请在仓库的 Actions secrets 中配置：
 

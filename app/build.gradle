@@ -50,7 +50,7 @@ android {
         }
     }
 
-    flavorDimensions += ["abi", "brand", "mode"]
+    flavorDimensions += ["abi", "brand", "mode", "player"]
     productFlavors {
         armeabi {
             dimension = "abi"
@@ -80,11 +80,26 @@ android {
             minSdkVersion 21
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        std {
+            // 标准版: 不打包 libmpv, 保持精简
+            dimension = "player"
+        }
+        mpv {
+            // MPV 版: 额外打包 libmpv/FFmpeg，与标准版同包名同签名，可覆盖安装
+            dimension = "player"
+            versionNameSuffix '-mpv'
+        }
+    }
+    sourceSets {
+        std.java.srcDir 'src/std/java'
+        mpv.java.srcDir 'src/mpv/java'
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
-            def flavorNames = variant.productFlavors.collect { it.name == "normal" ? "java" : it.name }.join('-')
-            // 构建自定义文件名
+            def flavorNames = variant.productFlavors.findAll {
+                it.name != "normal" && !(it.dimension == "player" && it.name == "std")
+            }.collect { it.name }.join('-')
+            // 构建自定义文件名: std 保持原名, mpv 版带 -mpv
             def fileName = "Y-LIVE_${variant.buildType.name}-${flavorNames}.apk"
             outputFileName = fileName
         }
@@ -106,6 +121,28 @@ android {
 
     lint {
         disable 'UnsafeOptInUsageError'
+    }
+}
+
+configurations {
+    // 只用来定位上游 MPV AAR，不参与编译/打包
+    mpvUpstream {
+        transitive = false
+    }
+}
+
+def patchedMpvAar = tasks.register('patchMpvAar', Exec) {
+    def upstream = configurations.mpvUpstream
+    def output = layout.buildDirectory.file('mpv-patched/mpv-android-lib.aar')
+    inputs.files(upstream)
+    inputs.file("$rootDir/scripts/patch-mpv-libs.py")
+    outputs.file(output)
+    doFirst {
+        def aar = upstream.files.find { it.name.endsWith('.aar') }
+        if (aar == null) throw new GradleException('mpv-android-lib AAR not found')
+        output.get().asFile.parentFile.mkdirs()
+        commandLine 'python3', "$rootDir/scripts/patch-mpv-libs.py",
+                aar.absolutePath, output.get().asFile.absolutePath
     }
 }
 
@@ -148,6 +185,11 @@ dependencies {
     implementation "androidx.media3:media3-datasource-rtmp:1.3.1"
     implementation 'androidx.media3:media3-common:1.3.1'
     implementation "com.github.anilbeesetti.nextlib:nextlib-media3ext:0.7.1"
+
+    // MPV 版: 上游 AAR 的 FFmpeg 库与 nextlib 0.7.1 重名，改名后再打包
+    mpvUpstream 'io.github.wohal:mpv-android-lib:0.2.4'
+    mpvImplementation files(patchedMpvAar)
+    mpvImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 
     implementation 'com.lzy.net:okgo:3.0.4'
     // BaseVideoController 等播放器 UI 基类来自 dkplayer-ui(点播用的 videocache 已移除)

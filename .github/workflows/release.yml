@@ -36,6 +36,9 @@ jobs:
       - name: Configure Android SDK
         run: printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 
+      - name: Install patchelf for MPV native libraries
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
       - name: Prepare release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.YTVBOX_KEYSTORE_BASE64 }}
@@ -78,15 +81,17 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew \
-            :app:assembleArmeabiGenericNormalRelease \
-            :app:assembleArm64GenericNormalRelease \
+            :app:assembleArmeabiGenericNormalStdRelease \
+            :app:assembleArm64GenericNormalStdRelease \
+            :app:assembleArmeabiGenericNormalMpvRelease \
+            :app:assembleArm64GenericNormalMpvRelease \
             --no-daemon --stacktrace
 
       - name: Collect and verify APKs
         run: |
           mkdir -p release
           find app/build/outputs/apk -type f -name 'Y-LIVE_*.apk' -exec cp '{}' release/ \;
-          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 2
+          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 4
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           for apk in release/*.apk; do
