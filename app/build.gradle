@@ -14,6 +14,24 @@ def releaseKeyPassword = System.getenv("YTVBOX_KEY_PASSWORD")
 def hasReleaseSigning = [releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword]
         .every { it != null && !it.isEmpty() }
 
+// 本地构建便利: 没有设置 CI 签名环境变量时，如果仓库根目录存在 signing/ 下的
+// 发布密钥和 signing-info.txt，则自动用它签名，避免 assembleRelease 产出未签名 APK
+// (未签名 APK 在电视上会报 INSTALL_PARSE_FAILED_NO_CERTIFICATES)。
+def usingLocalSigning = false
+def localSigningInfo = file("$rootDir/signing/ytvbox-signing-info.txt")
+def localKeystore = file("$rootDir/signing/ytvbox-release.p12")
+if (!hasReleaseSigning && localSigningInfo.exists() && localKeystore.exists()) {
+    def props = new Properties()
+    localSigningInfo.withInputStream { props.load(it) }
+    releaseKeystorePath = localKeystore.absolutePath
+    releaseKeystorePassword = props.getProperty("YTVBOX_KEYSTORE_PASSWORD")
+    releaseKeyAlias = props.getProperty("YTVBOX_KEY_ALIAS")
+    releaseKeyPassword = props.getProperty("YTVBOX_KEY_PASSWORD")
+    hasReleaseSigning = [releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword]
+            .every { it != null && !it.isEmpty() }
+    usingLocalSigning = hasReleaseSigning
+}
+
 android {
     namespace 'com.github.tvbox.osc'
     compileSdk 36
@@ -47,6 +65,7 @@ android {
                 storePassword releaseKeystorePassword
                 keyAlias releaseKeyAlias
                 keyPassword releaseKeyPassword
+                if (usingLocalSigning) storeType 'pkcs12'
             }
         }
     }
