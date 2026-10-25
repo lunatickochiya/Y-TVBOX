@@ -41,6 +41,8 @@ Exo 直播缓冲区也限制在 2s~20s / 24MB 以内并关闭回看缓冲。
 - **标准版**（文件名不带 `-mpv`）：保持精简，内置 exo/ijk/系统播放器。
 - **MPV 版**（文件名带 `-mpv`）：额外内置 libmpv 及其 FFmpeg 原生库，多出
   「mpv硬解 / mpv软解」两个选项，安装包大约增加 18MB/ABI。
+- MPV 原生库同时支持 **armeabi-v7a** 与 **arm64-v8a**，发布工作流两个 ABI
+  的 MPV 版都会构建。
 - MPV 版与标准版**同包名、同签名**，可以直接覆盖安装并保留直播源/设置。
 - 构建 MPV 版需要 `patchelf`（工作流会自动安装），用于把 libmpv 自带的 FFmpeg
   库改名，避免与 nextlib 的 `libavcodec.so` 等重名。
