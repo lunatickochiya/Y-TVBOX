@@ -4,7 +4,7 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
 
 ## GitHub Release
 
-发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK，另外还会构建两个 X5 内核版（文件名带 `x5`）和两个 Gecko 内核版（文件名带 `gecko`），共 6 个 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
+发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK，另外还会构建两个 X5 内核版（文件名带 `x5`）和两个 Gecko 内核版（文件名带 `gecko`），共 6 个 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。Release 标签包含分支名和运行编号（例如 `Y-TVBOX-main-...`），不同分支构建不会互相覆盖。
 
 `main` 分支生成的文件名以 `Y-TVBOX_main_` 开头，便于和 Android 4.4 兼容版区分。
 
