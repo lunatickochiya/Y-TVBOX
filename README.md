@@ -14,6 +14,12 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
   因此只放在 `live` 分支。
 - **音频兜底**：系统 MediaCodec 不支持 AC3 / EAC3 / DTS / TrueHD 时，用 nextlib 的
   FFmpeg 音频解码（点播默认 Exo 也保留该兜底）。
+- **FongMi/WeX csp 点播源兼容**：按 FongMi/TV 的 catvod 接口补齐了
+  `Spider.siteKey/net/local/js/dialog`、`getProxyUrl()`、`Proxy/Runtime/Local/Net`
+  等主机接口，`JarLoader` 会初始化站点上下文；`newwex.json` 的 Wex/GoProxy 已能在
+  本 App 启动（日志 `signature validation succeeded` / `health ok`），不再依赖播放器
+  自己启动 GoProxy。少数站点（如 AppV7/ManJu）仍会走它们自己的远程配置，若超时属于
+  站点侧问题，可在搜索源里关闭这些站点。
 - **MPV 版 APK**：文件名带 `-mpv`，额外内置 libmpv，直播「播放解码」会多出
   **mpv硬解 / mpv软解**。mpv 硬解使用 `mediacodec-copy`（兼容性优先），mpv 软解是纯
   FFmpeg；遇到 exo/系统硬解花屏的频道可直接切 MPV 对比。
