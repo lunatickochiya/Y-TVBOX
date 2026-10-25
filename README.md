@@ -5,7 +5,7 @@ y-live 是 Y-TVBOX 的**纯直播版**：应用 ID 为 `com.github.ylive.osc`，
 
 > **Android 版本要求**：当前 `live` / `main` 分支的 exo 软解升级到 nextlib 1.11.1，
 > 该库最低要求 Android 6.0（API 23）。Android 5.0/5.1 设备请使用
-> `y-tvbox-android-5` 分支（保留旧解码栈，minSdk 21）。
+> `live-android-5` 分支（保留旧解码栈，minSdk 21）。
 
 - 启动直接进直播界面；
 - 不再加载点播数据源：爬虫 / JS 引擎（QuickJS）/ P2P / 嗅探内核都不初始化，
@@ -45,6 +45,7 @@ Surface CPU 连接未释放和输出帧清理问题；同时保留硬解失败�
 - **标准版**（文件名不带 `-mpv`）：保持约 17MB，适合大多数设备，内置 exo/ijk/系统播放器。
 - **MPV 版**（文件名带 `-mpv`）：额外内置 libmpv 及其 FFmpeg 原生库，每个 ABI 约 +18MB
   （arm64 安装包约 35MB），多出「mpv硬解 / mpv软解」两个选项。
+- MPV 原生库同时支持 **armeabi-v7a** 与 **arm64-v8a**；发布工作流两个 ABI 的 MPV 版都会构建。
 - MPV 版与标准版**同包名、同签名**，可以直接覆盖安装并保留直播源/设置；不想用时再装回标准版即可。
 - MPV 版构建时会用 `scripts/patch-mpv-libs.py` 把 libmpv 自带的 FFmpeg 库改名，
   避免与 nextlib 的 `libavcodec.so` 等重名（需要 `patchelf`）。
