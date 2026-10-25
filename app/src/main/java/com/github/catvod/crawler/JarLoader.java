@@ -5,6 +5,8 @@ import android.content.Context;
 import android.util.Log;
 
 
+import com.github.catvod.net.Net;
+import com.github.catvod.utils.Local;
 import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.util.FileUtils;
 import com.github.tvbox.osc.util.MD5;
@@ -177,10 +179,12 @@ public class JarLoader {
         try {
             Log.i("JarLoader", "echo-getSpider 加载spider: " + key);
             Spider sp = (Spider) classLoader.loadClass("com.github.catvod.spider." + clsKey).newInstance();
+            // Modern csp_* spiders expect these host objects to be populated
+            // before init/createProxyUrl is called.
+            sp.siteKey = key;
+            sp.net = new Net();
+            sp.local = new Local(key);
             sp.init(App.getInstance(), ext);
-            if (!jar.isEmpty()) {
-                sp.homeContent(false); // 增加此行 应该可以解决部分写的有问题源的历史记录问题 但会增加这个源的首次加载时间 不需要可以已删掉
-            }
             spiders.put(key, sp);
             return sp;
         } catch (Throwable th) {

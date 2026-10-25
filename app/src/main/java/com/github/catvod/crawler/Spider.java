@@ -1,14 +1,63 @@
 package com.github.catvod.crawler;
 
+import android.app.Activity;
 import android.content.Context;
+import android.net.Uri;
+
+import com.github.catvod.Proxy;
+import com.github.catvod.Runtime;
+import com.github.catvod.net.Net;
+import com.github.catvod.utils.Dialog;
+import com.github.catvod.utils.Js;
+import com.github.catvod.utils.Local;
 import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.js.Connect;
+
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import okhttp3.Dns;
 
 public class Spider {
+
+    /** Modern catvod/WeX spider fields used by csp_* plugins. */
+    public String siteKey;
+    public Net net;
+    public Local local;
+    public final Js js = new Js();
+    public final Dialog dialog = new Dialog();
+
+    public Activity getActivity() {
+        return Runtime.activity();
+    }
+
+    public String getProxyUrl() {
+        return getProxyUrl(Collections.<String, String>emptyMap());
+    }
+
+    public String getProxyUrl(Map<String, String> params) {
+        Uri.Builder url = Uri.parse(Proxy.getUrl(true)).buildUpon()
+                .appendQueryParameter("do", "jar")
+                .appendQueryParameter("siteKey", siteKey == null ? "" : siteKey);
+        if (params != null) {
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                if (entry.getKey() == null || entry.getValue() == null) continue;
+                if ("do".equals(entry.getKey()) || "siteKey".equals(entry.getKey())) continue;
+                url.appendQueryParameter(entry.getKey(), entry.getValue());
+            }
+        }
+        return url.build().toString();
+    }
+
+    public Object[] proxy(Map<String, String> params) throws Exception {
+        return proxyLocal(params);
+    }
+
+    public String action(String action) throws Exception {
+        return null;
+    }
 
     public void init(Context context) throws Exception {}
 

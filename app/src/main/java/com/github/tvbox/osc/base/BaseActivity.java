@@ -68,6 +68,7 @@ public abstract class BaseActivity extends AppCompatActivity implements CustomAd
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        com.github.catvod.Runtime.setActivity(this);
         try {
             if (screenRatio < 0) {
                 DisplayMetrics dm = new DisplayMetrics();
