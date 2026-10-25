@@ -66,7 +66,14 @@ public class LivePlayerManager {
         savedPlayerConfig = copyConfig(defaultPlayerConfig);
     }
 
-    public void getLiveChannelPlayer(VideoView videoView, String channelName) {
+    /**
+     * 切换频道时加载该频道的播放配置。
+     *
+     * @return true 表示播放器/解码器/渲染方式发生变化，调用方必须 release 后重建；
+     *         false 表示只有频道地址变化，可以复用当前播放器和渲染 Surface，
+     *         避免换台时反复重建 ExoPlayer/MediaCodec 造成卡顿
+     */
+    public boolean getLiveChannelPlayer(VideoView videoView, String channelName) {
         JSONObject playerConfig = Hawk.get(channelName, null);
         if (playerConfig == null) {
             // 频道没有单独记忆: 沿用上一个频道的解码方式, 不要跳回全局默认的 exo软解.
@@ -80,31 +87,38 @@ public class LivePlayerManager {
                 rememberPlayerTypeAsDefault(inheritedType);
             }
             savedPlayerConfig = copyConfig(inherited);
-            if (!currentPlayerConfig.toString().equals(inherited.toString())) {
+            boolean playerChanged = !samePlayerConfig(currentPlayerConfig, inherited);
+            if (playerChanged) {
                 PlayerHelper.updateCfg(videoView, inherited);
+            } else if (currentPlayerConfig == null
+                    || currentPlayerConfig.optInt("sc", 0) != inherited.optInt("sc", 0)) {
+                videoView.setScreenScaleType(inherited.optInt("sc", 0));
             }
             currentPlayerConfig = inherited;
-            return;
+            return playerChanged;
         }
         savedPlayerConfig = copyConfig(playerConfig);
         if (playerConfig.toString().equals(currentPlayerConfig.toString()))
-            return;
+            return false;
 
-        try {
-            if (playerConfig.getInt("pl") == currentPlayerConfig.getInt("pl")
-                    && playerConfig.getInt("pr") == currentPlayerConfig.getInt("pr")
-                    && playerConfig.getString("ijk").equals(currentPlayerConfig.getString("ijk"))
-                    && Objects.equals(playerConfig.optString("exo"), currentPlayerConfig.optString("exo"))
-                    && Objects.equals(playerConfig.optString("mpv"), currentPlayerConfig.optString("mpv"))) {
-                videoView.setScreenScaleType(playerConfig.getInt("sc"));
-            } else {
-                PlayerHelper.updateCfg(videoView, playerConfig);
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
+        boolean playerChanged = !samePlayerConfig(playerConfig, currentPlayerConfig);
+        if (playerChanged) {
+            PlayerHelper.updateCfg(videoView, playerConfig);
+        } else {
+            videoView.setScreenScaleType(playerConfig.optInt("sc", 0));
         }
-
         currentPlayerConfig = playerConfig;
+        return playerChanged;
+    }
+
+    /** 只比较会影响播放器实例/解码器/Surface 的字段；画面比例变化不需要重建播放器。 */
+    private boolean samePlayerConfig(JSONObject first, JSONObject second) {
+        if (first == null || second == null) return false;
+        return first.optInt("pl", 0) == second.optInt("pl", 0)
+                && first.optInt("pr", 0) == second.optInt("pr", 0)
+                && Objects.equals(first.optString("ijk"), second.optString("ijk"))
+                && Objects.equals(first.optString("exo"), second.optString("exo"))
+                && Objects.equals(first.optString("mpv"), second.optString("mpv"));
     }
 
     /**

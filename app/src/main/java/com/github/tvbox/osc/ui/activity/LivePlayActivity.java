@@ -102,6 +102,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import kotlin.Pair;
+import xyz.doikki.videoplayer.player.AndroidMediaPlayer;
 import xyz.doikki.videoplayer.player.VideoView;
 import xyz.doikki.videoplayer.util.PlayerUtils;
 
@@ -1090,17 +1091,26 @@ public class LivePlayActivity extends BaseActivity {
         }
         if (!isPlaybackAvailable()) return true;
         cancelPlaybackChecks();
-        mVideoView.release();
         // 换台: 重置解码回退与黑屏检查
         liveDecodeFallbackTimes = 0;
         mHandler.removeCallbacks(mCheckVideoOutputRun);
+
+        boolean playerChanged = false;
         if (!changeSource) {
             currentChannelGroupIndex = channelGroupIndex;
             currentLiveChannelIndex = liveChannelIndex;
             currentLiveChannelItem = getLiveChannels(currentChannelGroupIndex).get(currentLiveChannelIndex);
             Hawk.put(HawkConfig.LIVE_CHANNEL, currentLiveChannelItem.getChannelName());
             HawkUtils.setLastLiveChannelGroup(liveChannelGroupList.get(currentChannelGroupIndex).getGroupName());
-            livePlayerManager.getLiveChannelPlayer(mVideoView, currentLiveChannelItem.getChannelName());
+            playerChanged = livePlayerManager.getLiveChannelPlayer(mVideoView, currentLiveChannelItem.getChannelName());
+        }
+        // 同一解码器/渲染方式只换地址时复用当前播放器：避免每次换台都 release
+        // ExoPlayer/MediaCodec 和 Surface，减少换台卡顿和黑屏时间。
+        boolean reusePlayer = !playerChanged
+                && mVideoView.getPlayer() != null
+                && !(mVideoView.getPlayer() instanceof AndroidMediaPlayer);
+        if (!reusePlayer) {
+            mVideoView.release();
         }
         channel_Name = currentLiveChannelItem;
         currentLiveChannelItem.setinclude_back(currentLiveChannelItem.hasCatchup() || currentLiveChannelItem.getUrl().indexOf("PLTV/8888") != -1);
@@ -1122,7 +1132,12 @@ public class LivePlayActivity extends BaseActivity {
         getEpg(new Date());
         playLiveUrl(currentLiveChannelItem.getUrl());
         showChannelInfo();
-        mVideoView.start();
+        if (reusePlayer) {
+            android.util.Log.w("YLive", "换台复用播放器: " + currentLiveChannelItem.getChannelName());
+            mVideoView.replay(false, false);
+        } else {
+            mVideoView.start();
+        }
         return true;
     }
 

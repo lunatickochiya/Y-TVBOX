@@ -460,10 +460,23 @@ public class BaseVideoView<P extends AbstractPlayer> extends FrameLayout
      */
     @Override
     public void replay(boolean resetPosition) {
+        replay(resetPosition, true);
+    }
+
+    /**
+     * 重新准备当前播放器。
+     *
+     * @param recreateDisplay false 时保留现有渲染 Surface/PlayerView，仅 reset 播放器
+     *                        并加载新地址。换台时 Exo/IJK/MPV 可复用播放器和 Surface，
+     *                        避免重建 MediaCodec 和渲染表面造成卡顿。
+     */
+    public void replay(boolean resetPosition, boolean recreateDisplay) {
         if (resetPosition) {
             mCurrentPosition = 0;
         }
-        addDisplay();
+        if (recreateDisplay || mRenderView == null) {
+            addDisplay();
+        }
         startPrepare(true);
     }
 
