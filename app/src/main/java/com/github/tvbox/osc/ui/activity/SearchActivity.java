@@ -556,6 +556,24 @@ public class SearchActivity extends BaseActivity {
                 }
             }
         });
+        makeHistoryItemsFocusable();
+    }
+
+    /**
+     * FlowLayout 只给历史词设置了 clickable，没有设置 focusable，电视遥控器
+     * 无法用方向键选中历史记录。这里补上焦点并加一个放大反馈。
+     */
+    private void makeHistoryItemsFocusable() {
+        for (int i = 0; i < tv_history.getChildCount(); i++) {
+            View child = tv_history.getChildAt(i);
+            child.setFocusable(true);
+            child.setFocusableInTouchMode(true);
+            child.setOnFocusChangeListener((view, hasFocus) -> view.animate()
+                    .scaleX(hasFocus ? 1.08f : 1.0f)
+                    .scaleY(hasFocus ? 1.08f : 1.0f)
+                    .setDuration(150)
+                    .start());
+        }
     }
 
     private void initViewModel() {
