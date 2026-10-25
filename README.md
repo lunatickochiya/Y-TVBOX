@@ -86,7 +86,8 @@ Exo 直播缓冲区也限制在 2s~20s / 24MB 以内并关闭回看缓冲。
 
 发布工作流构建 `armeabi-v7a` / `arm64-v8a` 的标准版与 MPV 版共 4 个签名 APK
 （文件名 `Y-LIVE_...`，MPV 版带 `-mpv`）。进入仓库的 Actions 页面，选择 `Y-LIVE`，
-点击 `Run workflow` 即可构建并上传到 GitHub Release。
+点击 `Run workflow` 即可构建并上传到 GitHub Release。Release 标签包含分支名和运行编号
+（例如 `Y-LIVE-live-android-5-...`），不同分支构建不会互相覆盖。
 
 未配置签名时，工作流会生成临时签名以完成构建和发布；不同运行生成的临时签名不同，APK 可能无法直接覆盖升级。正式发布请在仓库的 Actions secrets 中配置：
 
