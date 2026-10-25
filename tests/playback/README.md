@@ -23,7 +23,8 @@ directory and deletes that directory afterwards.
 - `LivePlayerManagerTest` runs the production manager against an in-memory Hawk
   storage boundary and small Android/player doubles. It verifies the stored
   decoder and scale after temporary fallback, channel reload and explicit decoder
-  selection. JSONObject serialization is real.
+  selection, including MPV hard/soft entries and the standard-APK fallback when
+  libmpv is absent. JSONObject serialization is real.
 - `PlaybackOutputStateTest` exercises the production Exo output state: READY
   announces preparation without inventing a video frame; real first-frame output
   announces rendering once; a fresh preparation resets output evidence; reset

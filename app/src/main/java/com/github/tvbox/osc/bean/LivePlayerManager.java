@@ -3,6 +3,7 @@ package com.github.tvbox.osc.bean;
 import androidx.annotation.NonNull;
 
 import com.github.tvbox.osc.player.EXOmPlayer;
+import com.github.tvbox.osc.player.mpv.MpvSupport;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.PlayerHelper;
 import com.orhanobut.hawk.Hawk;
@@ -24,9 +25,14 @@ public class LivePlayerManager {
         try {
             int playerType = Hawk.get(HawkConfig.LIVE_PLAYER_TYPE, -1);
             if (playerType == -1) playerType = Hawk.get(HawkConfig.PLAY_TYPE, 0);
-            // 直播只支持 3 种播放器: 0=系统, 1=IJK, 2=Exo; 其它值(点播的阿里/MX 等)统一按 Exo 处理,
+            // 直播支持 4 种播放器: 0=系统, 1=IJK, 2=Exo, 3=MPV; 其它值(点播的阿里/MX 等)统一按 Exo 处理,
             // 否则「播放解码」会显示成"系统"、而且切台后会换成不支持直播的播放器(无声)
-            if (playerType < 0 || playerType > 2) {
+            if (playerType < 0 || playerType > 3) {
+                playerType = 2;
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, playerType);
+            }
+            if (playerType == 3 && !MpvSupport.isAvailable()) {
+                // 标准版没有 libmpv: 保存过 MPV 配置也回退 Exo
                 playerType = 2;
                 Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, playerType);
             }
@@ -35,6 +41,9 @@ public class LivePlayerManager {
             // Exo 解码: 0=硬解, 1=软解; 没设置过时默认硬解(保持原来的硬解优先行为, 纯直播版在 App 里默认软解)
             defaultPlayerConfig.put("exo", EXOmPlayer.decodeNameOf(
                     Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD)));
+            // MPV 解码: 0=硬解, 1=软解
+            defaultPlayerConfig.put("mpv", MpvSupport.decodeNameOf(
+                    Hawk.get(HawkConfig.LIVE_MPV_DECODE, MpvSupport.DECODER_HARD)));
             defaultPlayerConfig.put("pr", Hawk.get(HawkConfig.PLAY_RENDER, 0));
             defaultPlayerConfig.put("sc", Hawk.get(HawkConfig.PLAY_SCALE, 0));
             android.util.Log.w("YLive", "LivePlayerManager 默认配置 " + defaultPlayerConfig);
@@ -78,7 +87,8 @@ public class LivePlayerManager {
             if (playerConfig.getInt("pl") == currentPlayerConfig.getInt("pl")
                     && playerConfig.getInt("pr") == currentPlayerConfig.getInt("pr")
                     && playerConfig.getString("ijk").equals(currentPlayerConfig.getString("ijk"))
-                    && Objects.equals(playerConfig.optString("exo"), currentPlayerConfig.optString("exo"))) {
+                    && Objects.equals(playerConfig.optString("exo"), currentPlayerConfig.optString("exo"))
+                    && Objects.equals(playerConfig.optString("mpv"), currentPlayerConfig.optString("mpv"))) {
                 videoView.setScreenScaleType(playerConfig.getInt("sc"));
             } else {
                 PlayerHelper.updateCfg(videoView, playerConfig);
@@ -92,7 +102,7 @@ public class LivePlayerManager {
 
     /**
      * 当前直播解码选项在「播放解码」菜单里的位置:
-     * 0=系统, 1=ijk硬解, 2=ijk软解, 3=exo软解, 4=exo硬解
+     * 0=系统, 1=ijk硬解, 2=ijk软解, 3=exo软解, 4=exo硬解, 5=mpv硬解, 6=mpv软解
      */
     public int getLivePlayerType() {
         int playerTypeIndex = 0;
@@ -102,6 +112,9 @@ public class LivePlayerManager {
             String exoDecode = currentPlayerConfig.has("exo")
                     ? currentPlayerConfig.getString("exo")
                     : EXOmPlayer.decodeNameOf(Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD));
+            String mpvDecode = currentPlayerConfig.has("mpv")
+                    ? currentPlayerConfig.getString("mpv")
+                    : MpvSupport.decodeNameOf(Hawk.get(HawkConfig.LIVE_MPV_DECODE, MpvSupport.DECODER_HARD));
             switch (playerType) {
                 case 0:
                     playerTypeIndex = 0;
@@ -114,6 +127,13 @@ public class LivePlayerManager {
                     break;
                 case 2:
                     playerTypeIndex = EXOmPlayer.decodeModeOf(exoDecode) == EXOmPlayer.DECODER_SOFT ? 3 : 4;
+                    break;
+                case 3:
+                    if (!MpvSupport.isAvailable()) {
+                        playerTypeIndex = 4; // 标准版回退 Exo 硬解
+                    } else {
+                        playerTypeIndex = MpvSupport.decodeModeOf(mpvDecode) == MpvSupport.DECODER_SOFT ? 6 : 5;
+                    }
                     break;
             }
         } catch (JSONException e) {
@@ -155,6 +175,7 @@ public class LivePlayerManager {
             playerConfig.put("pl", currentPlayerConfig.getInt("pl"));
             playerConfig.put("ijk", currentPlayerConfig.getString("ijk"));
             playerConfig.put("exo", currentPlayerConfig.optString("exo", EXOmPlayer.DECODE_HARD_NAME));
+            playerConfig.put("mpv", currentPlayerConfig.optString("mpv", MpvSupport.DECODE_HARD_NAME));
             playerConfig.put("pr", currentPlayerConfig.getInt("pr"));
             playerConfig.put("sc", currentPlayerConfig.getInt("sc"));
         } catch (JSONException e) {
@@ -165,7 +186,7 @@ public class LivePlayerManager {
         currentPlayerConfig = playerConfig;
     }
 
-    /** 把「播放解码」菜单下标写进播放配置(0系统/1ijk硬解/2ijk软解/3exo软解/4exo硬解) */
+    /** 把「播放解码」菜单下标写进播放配置(0系统/1ijk硬解/2ijk软解/3exo软解/4exo硬解/5mpv硬解/6mpv软解) */
     private void applyPlayerType(JSONObject playerConfig, int playerType) {
         try {
             switch (playerType) {
@@ -189,13 +210,21 @@ public class LivePlayerManager {
                     playerConfig.put("pl", 2);
                     playerConfig.put("exo", EXOmPlayer.DECODE_HARD_NAME);
                     break;
+                case 5:
+                    playerConfig.put("pl", 3);
+                    playerConfig.put("mpv", MpvSupport.DECODE_HARD_NAME);
+                    break;
+                case 6:
+                    playerConfig.put("pl", 3);
+                    playerConfig.put("mpv", MpvSupport.DECODE_SOFT_NAME);
+                    break;
             }
         } catch (JSONException e) {
             e.printStackTrace();
         }
     }
 
-    /** 播放配置对应的「播放解码」菜单下标(0系统/1ijk硬解/2ijk软解/3exo软解/4exo硬解) */
+    /** 播放配置对应的「播放解码」菜单下标(0系统/1ijk硬解/2ijk软解/3exo软解/4exo硬解/5mpv硬解/6mpv软解) */
     private int livePlayerTypeOf(JSONObject playerConfig) {
         if (playerConfig == null) return 0;
         int playerType = playerConfig.optInt("pl", 0);
@@ -207,6 +236,13 @@ public class LivePlayerManager {
                     ? playerConfig.optString("exo")
                     : EXOmPlayer.decodeNameOf(Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD));
             return EXOmPlayer.decodeModeOf(exoDecode) == EXOmPlayer.DECODER_SOFT ? 3 : 4;
+        }
+        if (playerType == 3) {
+            if (!MpvSupport.isAvailable()) return 4;
+            String mpvDecode = playerConfig.has("mpv")
+                    ? playerConfig.optString("mpv")
+                    : MpvSupport.decodeNameOf(Hawk.get(HawkConfig.LIVE_MPV_DECODE, MpvSupport.DECODER_HARD));
+            return MpvSupport.decodeModeOf(mpvDecode) == MpvSupport.DECODER_SOFT ? 6 : 5;
         }
         return 0;
     }
@@ -236,6 +272,14 @@ public class LivePlayerManager {
                 Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 2);
                 Hawk.put(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD);
                 break;
+            case 5:
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 3);
+                Hawk.put(HawkConfig.LIVE_MPV_DECODE, MpvSupport.DECODER_HARD);
+                break;
+            case 6:
+                Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 3);
+                Hawk.put(HawkConfig.LIVE_MPV_DECODE, MpvSupport.DECODER_SOFT);
+                break;
         }
         applyPlayerType(defaultPlayerConfig, playerType);
         android.util.Log.w("YLive", "默认解码更新: " + defaultPlayerConfig);
@@ -247,6 +291,7 @@ public class LivePlayerManager {
             if (source.has("pl")) target.put("pl", source.getInt("pl"));
             if (source.has("ijk")) target.put("ijk", source.getString("ijk"));
             if (source.has("exo")) target.put("exo", source.getString("exo"));
+            if (source.has("mpv")) target.put("mpv", source.getString("mpv"));
         } catch (JSONException e) {
             e.printStackTrace();
         }

@@ -14,10 +14,13 @@ def hasReleaseSigning = [releaseKeystorePath, releaseKeystorePassword, releaseKe
         .every { it != null && !it.isEmpty() }
 
 android {
-    compileSdk 34
+    namespace 'com.github.tvbox.osc'
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.github.ylive.osc'
+        // media3 1.11 / nextlib 1.11 最低要求 API 23；Android 5.x 请使用 android5 分支
+        minSdkVersion 23
         targetSdkVersion 28
         versionCode 1
         versionName "1.0.".concat(buildTime())
@@ -50,7 +53,7 @@ android {
         }
     }
 
-    flavorDimensions += ["abi", "brand", "mode"]
+    flavorDimensions += ["abi", "brand", "mode", "player"]
     productFlavors {
         armeabi {
             dimension = "abi"
@@ -77,14 +80,29 @@ android {
         }
         normal {
             dimension = "mode"
-            minSdkVersion 21
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        std {
+            // 标准版: 不打包 libmpv, 保持 ~16MB
+            dimension = "player"
+        }
+        mpv {
+            // MPV 版: 额外打包 libmpv/FFmpeg, 每个 ABI 约 +30MB。
+            // 与标准版同包名/签名, 可直接覆盖安装并保留直播源与设置。
+            dimension = "player"
+            versionNameSuffix '-mpv'
+        }
+    }
+    sourceSets {
+        std.java.srcDir 'src/std/java'
+        mpv.java.srcDir 'src/mpv/java'
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
-            def flavorNames = variant.productFlavors.collect { it.name == "normal" ? "java" : it.name }.join('-')
-            // 构建自定义文件名
+            def flavorNames = variant.productFlavors.findAll {
+                it.name != "normal" && !(it.dimension == "player" && it.name == "std")
+            }.collect { it.name }.join('-')
+            // 构建自定义文件名: std 保持原名, mpv 版带 -mpv
             def fileName = "Y-LIVE_${variant.buildType.name}-${flavorNames}.apk"
             outputFileName = fileName
         }
@@ -102,10 +120,40 @@ android {
 
     buildFeatures {
         dataBinding = true
+        buildConfig = true
     }
 
     lint {
         disable 'UnsafeOptInUsageError'
+    }
+}
+
+kotlin {
+    jvmToolchain(17)
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
+    }
+}
+
+configurations {
+    // 只用来定位上游 MPV AAR，不参与编译/打包
+    mpvUpstream {
+        transitive = false
+    }
+}
+
+def patchedMpvAar = tasks.register('patchMpvAar', Exec) {
+    def upstream = configurations.mpvUpstream
+    def output = layout.buildDirectory.file('mpv-patched/mpv-android-lib.aar')
+    inputs.files(upstream)
+    inputs.file("$rootDir/scripts/patch-mpv-libs.py")
+    outputs.file(output)
+    doFirst {
+        def aar = upstream.files.find { it.name.endsWith('.aar') }
+        if (aar == null) throw new GradleException('mpv-android-lib AAR not found')
+        output.get().asFile.parentFile.mkdirs()
+        commandLine 'python3', "$rootDir/scripts/patch-mpv-libs.py",
+                aar.absolutePath, output.get().asFile.absolutePath
     }
 }
 
@@ -118,7 +166,6 @@ dependencies {
             because("kotlin-stdlib-jdk8 is now a part of kotlin-stdlib")
         }
     }
-    implementation files('libs/lib-decoder-ffmpeg-release.aar')
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation 'com.github.NanoHttpd.nanohttpd:nanohttpd:nanohttpd-project-2.3.1'
     implementation 'com.google.zxing:core:3.5.1'
@@ -140,14 +187,22 @@ dependencies {
     implementation 'org.greenrobot:eventbus:3.3.1'
     implementation 'com.orhanobut:hawk:2.0.1'
     implementation 'androidx.annotation:annotation:1.8.2'
-    implementation "androidx.media3:media3-exoplayer:1.3.1"
-    implementation "androidx.media3:media3-ui:1.3.1"
-    implementation "androidx.media3:media3-exoplayer-dash:1.3.1"
-    implementation "androidx.media3:media3-exoplayer-hls:1.3.1"
-    implementation "androidx.media3:media3-exoplayer-rtsp:1.3.1"
-    implementation "androidx.media3:media3-datasource-rtmp:1.3.1"
-    implementation 'androidx.media3:media3-common:1.3.1'
-    implementation "com.github.anilbeesetti.nextlib:nextlib-media3ext:0.7.1"
+    implementation "androidx.media3:media3-exoplayer:1.11.1"
+    implementation "androidx.media3:media3-ui:1.11.1"
+    implementation "androidx.media3:media3-exoplayer-dash:1.11.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.11.1"
+    implementation "androidx.media3:media3-exoplayer-rtsp:1.11.1"
+    implementation "androidx.media3:media3-datasource-rtmp:1.11.1"
+    implementation 'androidx.media3:media3-common:1.11.1'
+    // nextlib 1.11.1 修复了 FFmpeg 软解 Surface 颜色(Color/YV12)、Surface CPU
+    // 连接未释放、输出帧清理等问题, 是 exo 软解花屏/绿屏的主要修复版本
+    implementation "io.github.anilbeesetti:nextlib-media3ext:1.11.1-0.16.0"
+
+    // MPV 版: 上游 AAR 会与 nextlib 的 libavcodec.so 等重名，先通过
+    // scripts/patch-mpv-libs.py 把 MPV 的 FFmpeg 库改名再打包。标准版不打包。
+    mpvUpstream 'io.github.wohal:mpv-android-lib:0.2.4'
+    mpvImplementation files(patchedMpvAar)
+    mpvImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 
     implementation 'com.lzy.net:okgo:3.0.4'
     // BaseVideoController 等播放器 UI 基类来自 dkplayer-ui(点播用的 videocache 已移除)

@@ -44,6 +44,7 @@ import com.github.tvbox.osc.event.RefreshEvent;
 import com.github.tvbox.osc.fcc.FccController;
 import com.github.tvbox.osc.player.EXOmPlayer;
 import com.github.tvbox.osc.player.controller.LiveController;
+import com.github.tvbox.osc.player.mpv.MpvSupport;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.ui.adapter.ApiHistoryDialogAdapter;
 import com.github.tvbox.osc.ui.adapter.LiveChannelGroupAdapter;
@@ -114,6 +115,9 @@ import xyz.doikki.videoplayer.util.PlayerUtils;
  * @description:
  */
 public class LivePlayActivity extends BaseActivity {
+
+    /** 标准版没有 libmpv，菜单里不显示 MPV 选项 */
+    private static final boolean MPV_AVAILABLE = MpvSupport.isAvailable();
 
     // Main View
     private VideoView mVideoView;
@@ -1277,6 +1281,8 @@ public class LivePlayActivity extends BaseActivity {
             case 2: return "ijk软解";
             case 3: return "exo软解";
             case 4: return "exo硬解";
+            case 5: return "mpv硬解";
+            case 6: return "mpv软解";
             default: return "系统";
         }
     }
@@ -1293,7 +1299,12 @@ public class LivePlayActivity extends BaseActivity {
         }
         int cur = livePlayerManager.getLivePlayerType();
         int target;
-        if (cur == 3) {
+        if (cur == 6) {
+            // mpv软解 -> mpv硬解; MPV 本身不可用时再交给 Exo 硬解
+            target = MPV_AVAILABLE ? 5 : 4;
+        } else if (cur == 5) {
+            target = 4;
+        } else if (cur == 3) {
             target = 4;
         } else if (cur == 2) {
             target = 1;
@@ -1333,7 +1344,7 @@ public class LivePlayActivity extends BaseActivity {
         mHandler.removeCallbacks(mCheckVideoOutputRun);
         if (!isPlaybackRecoveryAllowed()) return;
         int decoder = livePlayerManager.getLivePlayerType();
-        if (decoder != 2 && decoder != 3) return;
+        if (decoder != 2 && decoder != 3 && decoder != 5 && decoder != 6) return;
         if (mVideoView.getPlayer() instanceof EXOmPlayer) {
             EXOmPlayer exoPlayer = (EXOmPlayer) mVideoView.getPlayer();
             if (!exoPlayer.shouldCheckVideoOutput()) return;
@@ -2396,6 +2407,10 @@ public class LivePlayActivity extends BaseActivity {
         ArrayList<String> sourceItems = new ArrayList<>();
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
         ArrayList<String> playerDecoderItems = new ArrayList<>(Arrays.asList("系统", "ijk硬解", "ijk软解", "exo软解", "exo硬解"));
+        if (MPV_AVAILABLE) {
+            playerDecoderItems.add("mpv硬解");
+            playerDecoderItems.add("mpv软解");
+        }
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
         ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度", "开机自启", "关于"));
         ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "分组开关", "备份设置"));

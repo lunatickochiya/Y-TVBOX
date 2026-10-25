@@ -1,5 +1,6 @@
 package com.github.tvbox.osc.bean;
 
+import com.github.tvbox.osc.player.mpv.MpvSupport;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.orhanobut.hawk.Hawk;
 import org.json.JSONObject;
@@ -14,6 +15,8 @@ public final class LivePlayerManagerTest {
         temporaryFallbackDoesNotLeakToNextChannel();
         legacyChannelDecoderCarriesOverToUnconfiguredChannel();
         perChannelChoiceIsNotOverwrittenByGlobalChange();
+        mpvDecoderChoiceIsRemembered();
+        mpvChoiceFallsBackToExoWhenLibraryIsMissing();
         System.out.println("LivePlayerManagerTest passed");
     }
 
@@ -144,6 +147,47 @@ public final class LivePlayerManagerTest {
         check(manager.getLivePlayerType() == 4, "channel memory must keep its explicit hard decoder");
         manager.getLiveChannelPlayer(view, "soft");
         check(manager.getLivePlayerType() == 3, "channel memory must keep its explicit soft decoder");
+    }
+
+    // MPV has two menu entries: 5=hard, 6=soft. It must behave like Exo for
+    // global defaults, per-channel memory and temporary fallback.
+    private static void mpvDecoderChoiceIsRemembered() {
+        MpvSupport.AVAILABLE = true;
+        Hawk.clear();
+        LivePlayerManager manager = new LivePlayerManager();
+        VideoView view = new VideoView();
+        manager.init(view);
+        manager.changeLivePlayerType(view, 6, "mpv-soft");
+        check(manager.getLivePlayerType() == 6, "MPV soft decoder must round-trip");
+        check(Hawk.get(HawkConfig.LIVE_PLAYER_TYPE, -1) == 3, "MPV must be saved as player type 3");
+        check(Hawk.get(HawkConfig.LIVE_MPV_DECODE, -1) == MpvSupport.DECODER_SOFT,
+                "MPV soft mode must be saved");
+        manager.getLiveChannelPlayer(view, "next");
+        check(manager.getLivePlayerType() == 6, "MPV decoder must survive channel switch");
+        manager.changeLivePlayerType(view, 5, "mpv-hard");
+        check(manager.getLivePlayerType() == 5, "MPV hard decoder must round-trip");
+        JSONObject saved = Hawk.get("mpv-hard", null);
+        check(saved != null && saved.optInt("pl") == 3, "MPV channel config must use pl=3");
+        check("硬解".equals(saved.optString("mpv")), "MPV channel config must save hard mode");
+    }
+
+    // A standard APK (no libmpv) upgraded over an MPV install must not try to
+    // instantiate a missing player.
+    private static void mpvChoiceFallsBackToExoWhenLibraryIsMissing() {
+        MpvSupport.AVAILABLE = false;
+        try {
+            Hawk.clear();
+            Hawk.put(HawkConfig.LIVE_PLAYER_TYPE, 3);
+            Hawk.put(HawkConfig.LIVE_MPV_DECODE, MpvSupport.DECODER_SOFT);
+            LivePlayerManager manager = new LivePlayerManager();
+            VideoView view = new VideoView();
+            manager.init(view);
+            check(manager.getLivePlayerType() == 4, "missing MPV library must fall back to exo hard");
+            check(Hawk.get(HawkConfig.LIVE_PLAYER_TYPE, -1) == 2,
+                    "missing MPV library must be rewritten to exo");
+        } finally {
+            MpvSupport.AVAILABLE = true;
+        }
     }
 
     private static void check(boolean condition, String message) {
