@@ -796,7 +796,7 @@ public class ModelSettingFragment extends BaseLazyFragment {
             public void onClick(View v) {
                 FastClickCheckUtil.check(v);
                 Hawk.put(HawkConfig.BOOT_START_LIVE, !Hawk.get(HawkConfig.BOOT_START_LIVE, false));
-                tvBootLive.setText(Hawk.get(HawkConfig.BOOT_START_LIVE, true) ? "开启" : "关闭");
+                tvBootLive.setText(Hawk.get(HawkConfig.BOOT_START_LIVE, false) ? "开启" : "关闭");
             }
         });
 

@@ -20,11 +20,9 @@ import com.orhanobut.hawk.Hawk;
  * - BOOT_COMPLETED: 解锁后派发 (标准开机广播)
  * 需 directBootAware=true (manifest) 才能收到 LOCKED_BOOT_COMPLETED。
  *
- * ⚠️ 关键坑 (Android 14): LOCKED_BOOT_COMPLETED 时 credential-encrypted 存储
- * 不可用, Hawk/SharedPreferences 访问会抛 IllegalStateException 崩溃!
- * 因此: 未解锁时不能读 Hawk 开关 → 用"无条件启动"策略 (用户既然装了 TVBox
- * 并开了自启, 开机拉起 HomeActivity 是合理行为, HomeActivity 内部会正常加载)。
- * 若确实想尊重开关, 只能把开关存到 DeviceProtectedStorage (较复杂, 暂不用)。
+ * ⚠️ Android 14: LOCKED_BOOT_COMPLETED 时 credential-encrypted 存储不可用,
+ * Hawk/SharedPreferences 访问会抛异常。此时无法确认用户是否开启自启, 按默认
+ * 关闭处理, 不自动拉起; 解锁后的 BOOT_COMPLETED 会按用户开关正常启动。
  */
 public class BootReceiver extends BroadcastReceiver {
     @Override
@@ -39,12 +37,12 @@ public class BootReceiver extends BroadcastReceiver {
                     @Override
                     public void run() {
                         try {
-                            // 尝试读开关; 若存储不可用(未解锁)则默认启动
-                            boolean start = true;
+                            // 默认关闭开机自启; 只有用户明确开启后才拉起
+                            boolean start = false;
                             try {
-                                start = Hawk.get(HawkConfig.BOOT_START_LIVE, true);
+                                start = Hawk.get(HawkConfig.BOOT_START_LIVE, false);
                             } catch (Throwable storageUnavailable) {
-                                start = true;
+                                start = false;
                             }
                             if (start) {
                                 Intent i = new Intent(ctx, HomeActivity.class);
