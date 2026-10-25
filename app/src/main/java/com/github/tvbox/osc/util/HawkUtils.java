@@ -8,6 +8,7 @@ import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.base.App;
 import com.github.tvbox.osc.bean.IJKCode;
+import com.github.tvbox.osc.player.ExoAudioFallbackRenderersFactory;
 import com.orhanobut.hawk.Hawk;
 
 import java.util.List;
@@ -133,7 +134,8 @@ public class HawkUtils {
                 return new NextRenderersFactory(context);
             case 0:
             default:
-                return new DefaultRenderersFactory(context);
+                // 系统视频解码 + nextlib FFmpeg 音频兜底(AC3/EAC3/DTS/TrueHD)
+                return new ExoAudioFallbackRenderersFactory(context);
         }
     }
 

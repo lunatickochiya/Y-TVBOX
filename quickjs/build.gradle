@@ -3,10 +3,11 @@ plugins {
 }
 
 android {
-    compileSdk 34
+    namespace 'com.whl.quickjs.android'
+    compileSdk 36
 
     defaultConfig {
-        minSdk 21
+        minSdk 23
         targetSdk 28
     }
 }

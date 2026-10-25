@@ -2,9 +2,29 @@
 
 Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox 同时安装。
 
+> **Android 版本要求**：`main` 分支的 exo 软解已升级到 nextlib 1.11.1（最低 API 23 /
+> Android 6.0），并新增 MPV 版。Android 5.0/5.1 设备请使用 `y-tvbox-android-5`
+> 分支（保留旧解码栈，minSdk 21）。
+
+## 解码器（exo 花屏修复 / MPV）
+
+- **exo 软解/硬解**：升级到 media3 1.11.1 + nextlib 1.11.1，修复旧版 FFmpeg 软解的
+  Surface 颜色（YV12/绿屏/花屏）、Surface CPU 连接未释放和输出帧清理问题；硬解不支持
+  的编码/音频仍自动回退 FFmpeg。
+- **音频兜底**：系统 MediaCodec 不支持 AC3 / EAC3 / DTS / TrueHD 时，用 nextlib 的
+  FFmpeg 音频解码（点播默认 Exo 也保留该兜底）。
+- **MPV 版 APK**：文件名带 `-mpv`，额外内置 libmpv，直播「播放解码」会多出
+  **mpv硬解 / mpv软解**。mpv 硬解使用 `mediacodec-copy`（兼容性优先），mpv 软解是纯
+  FFmpeg；遇到 exo/系统硬解花屏的频道可直接切 MPV 对比。
+- 标准版与 MPV 版**同包名、同签名**，可直接覆盖安装并保留设置；标准版安装包约
+  29MB，MPV 版约 47MB（arm64 release）。
+
 ## GitHub Release
 
-发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个签名 APK，另外还会构建两个 X5 内核版（文件名带 `x5`）和两个 Gecko 内核版（文件名带 `gecko`），共 6 个 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建并上传到 GitHub Release。
+发布工作流会构建 `armeabi-v7a` 和 `arm64-v8a` 两个标准版 APK、两个 MPV 版 APK，
+另外还会构建两个 X5 内核版（文件名带 `x5`）和两个 Gecko 内核版（文件名带 `gecko`），
+共 8 个 APK。进入仓库的 Actions 页面，选择 `Y-TVBOX`，点击 `Run workflow` 即可构建
+并上传到 GitHub Release。工作流会先安装 `patchelf` 用于 MPV 原生库改名。
 
 `main` 分支生成的文件名以 `Y-TVBOX_main_` 开头，便于和 Android 4.4 兼容版区分。
 
@@ -35,9 +55,9 @@ armeabi 约 +45MB），用于替代老旧系统 WebView 做嗅探/解析：设�
 
 ## Gecko 内核（可选版本）
 
-文件名带 `gecko` 的 APK 内置 Mozilla GeckoView 144（按 ABI 打包，约 +80MB；144 是最后支持
-Android 5.0+ 的版本），用现代 Firefox 内核替代老旧系统 WebView 做嗅探/解析：设置里把
-「嗅探Webview」切换为「Gecko内核」即可，无需下载、无需重启。
+文件名带 `gecko` 的 APK 内置 Mozilla GeckoView 144（按 ABI 打包，约 +80MB），用现代
+Firefox 内核替代老旧系统 WebView 做嗅探/解析：设置里把「嗅探Webview」切换为
+「Gecko内核」即可，无需下载、无需重启。
 
 请求嗅探通过内置 WebExtension（`assets/extensions/sniffer`）的 `webRequest` 上报完成，
 点击选择器（evaluateScript）通过扩展的 native 端口在页面里执行 JS，与系统/X5 内核行为一致。

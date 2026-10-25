@@ -4,10 +4,11 @@ plugins {
 }
 
 android {
-    compileSdk 34
+    namespace 'com.undcover.freedom.pyramid'
+    compileSdk 36
 
     defaultConfig {
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 28
 
         python {
@@ -63,7 +64,6 @@ android {
         }
     }
 
-    buildToolsVersion '30.0.3'
 }
 
 dependencies {

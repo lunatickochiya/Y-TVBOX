@@ -36,6 +36,9 @@ jobs:
       - name: Configure Android SDK
         run: printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 
+      - name: Install patchelf for MPV native libraries
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
       - name: Prepare release signing
         env:
           KEYSTORE_BASE64: ${{ secrets.YTVBOX_KEYSTORE_BASE64 }}
@@ -78,19 +81,21 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew \
-            :app:assembleArmeabiGenericNormalRelease \
-            :app:assembleArm64GenericNormalRelease \
-            :app:assembleArmeabiGenericX5Release \
-            :app:assembleArm64GenericX5Release \
-            :app:assembleArmeabiGenericGeckoRelease \
-            :app:assembleArm64GenericGeckoRelease \
+            :app:assembleArmeabiGenericNormalRegularRelease \
+            :app:assembleArm64GenericNormalRegularRelease \
+            :app:assembleArmeabiGenericNormalMpvRelease \
+            :app:assembleArm64GenericNormalMpvRelease \
+            :app:assembleArmeabiGenericX5RegularRelease \
+            :app:assembleArm64GenericX5RegularRelease \
+            :app:assembleArmeabiGenericGeckoRegularRelease \
+            :app:assembleArm64GenericGeckoRegularRelease \
             --no-daemon --stacktrace
 
       - name: Collect and verify APKs
         run: |
           mkdir -p release
           find app/build/outputs/apk -type f -name 'Y-TVBOX_*.apk' -exec cp '{}' release/ \;
-          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 6
+          test "$(find release -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 8
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           for apk in release/*.apk; do

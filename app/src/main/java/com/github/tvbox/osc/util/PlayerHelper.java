@@ -8,6 +8,7 @@ import com.github.tvbox.osc.api.ApiConfig;
 import com.github.tvbox.osc.bean.IJKCode;
 import com.github.tvbox.osc.player.EXOmPlayer;
 import com.github.tvbox.osc.player.IjkmPlayer;
+import com.github.tvbox.osc.player.mpv.MpvSupport;
 import com.github.tvbox.osc.player.render.SurfaceRenderViewFactory;
 import com.orhanobut.hawk.Hawk;
 
@@ -16,6 +17,7 @@ import org.json.JSONObject;
 
 import tv.danmaku.ijk.media.player.IjkMediaPlayer;
 import xyz.doikki.videoplayer.aliplayer.AliyunMediaPlayerFactory;
+import xyz.doikki.videoplayer.player.AbstractPlayer;
 import xyz.doikki.videoplayer.player.AndroidMediaPlayerFactory;
 import xyz.doikki.videoplayer.player.PlayerFactory;
 import xyz.doikki.videoplayer.player.VideoView;
@@ -35,6 +37,8 @@ public class PlayerHelper {
         int scale = Hawk.get(HawkConfig.PLAY_SCALE, 0);
         // Exo 解码方式: 直播播放配置里带 exo 项时生效(-1=未指定, 用设置里的 Exo 渲染器)
         int exoDecode = -1;
+        // MPV 解码方式: 0=硬解(mediacodec-copy), 1=软解(FFmpeg)
+        int mpvDecode = Hawk.get(HawkConfig.LIVE_MPV_DECODE, MpvSupport.DECODER_HARD);
         try {
             playerType = playerCfg.getInt("pl");
             //就我遇到的问题是 Exo 在 TextureView 黑屏 调整设置中的渲染模式无法生效
@@ -47,15 +51,24 @@ public class PlayerHelper {
                 // 老配置没有 exo 项: 按设置里的默认解码, 保证和「播放解码」菜单显示一致
                 exoDecode = Hawk.get(HawkConfig.LIVE_EXO_DECODE, EXOmPlayer.DECODER_HARD);
             }
+            if (playerCfg.has("mpv")) {
+                mpvDecode = MpvSupport.decodeModeOf(playerCfg.getString("mpv"));
+            }
         } catch (JSONException e) {
             e.printStackTrace();
         }
         if (forcePlayerType >= 0) playerType = forcePlayerType;
+        if (playerType == 20 && !MpvSupport.isAvailable()) {
+            // 标准版没有 libmpv: 用 MPV 配置启动时回退 Exo
+            android.util.Log.i("YLive", "当前 APK 未内置 MPV, pl=20 回退 Exo");
+            playerType = 2;
+            if (exoDecode < 0) exoDecode = EXOmPlayer.DECODER_HARD;
+        }
         if (LegacyPlaybackProfile.isLegacyAndroid(Build.VERSION.SDK_INT)) {
             renderType = LegacyPlaybackProfile.defaultRenderType(Build.VERSION.SDK_INT);
         }
         android.util.Log.i("YLive", "updateCfg pl=" + playerType + " ijk=" + ijkCode + " exo=" + exoDecode
-                + " render=" + renderType + " scale=" + scale);
+                + " mpv=" + mpvDecode + " render=" + renderType + " scale=" + scale);
         IJKCode codec = ApiConfig.get().getIJKCodec(ijkCode);
         PlayerFactory playerFactory;
         if (playerType == 1) {
@@ -76,12 +89,24 @@ public class PlayerHelper {
             };
         } else if (playerType == 3) {
             playerFactory = AliyunMediaPlayerFactory.create();
+        } else if (playerType == 20) {
+            // MPV: libmpv 软/硬解，MPV 版 APK 专属；标准版已在上面回退到 Exo
+            final boolean mpvHardware = mpvDecode != MpvSupport.DECODER_SOFT;
+            playerFactory = new PlayerFactory<AbstractPlayer>() {
+                @Override
+                public AbstractPlayer createPlayer(Context context) {
+                    return MpvSupport.createPlayer(context, mpvHardware);
+                }
+            };
         } else {
             playerFactory = AndroidMediaPlayerFactory.create();
         }
         RenderViewFactory renderViewFactory = null;
         if (playerType==2){
             renderViewFactory = PlayerViewRenderViewFactory.create(renderType);
+        }else if (playerType==20){
+            // libmpv 的 gpu 渲染器用 SurfaceView 最稳
+            renderViewFactory = SurfaceRenderViewFactory.create();
         }else{
             switch (renderType) {
                 case 0:
@@ -119,6 +144,15 @@ public class PlayerHelper {
             };
         } else if (playType == 3) {
             playerFactory = AliyunMediaPlayerFactory.create();
+        } else if (playType == 20 && MpvSupport.isAvailable()) {
+            final boolean mpvHardware = Hawk.get(HawkConfig.LIVE_MPV_DECODE,
+                    MpvSupport.DECODER_HARD) != MpvSupport.DECODER_SOFT;
+            playerFactory = new PlayerFactory<AbstractPlayer>() {
+                @Override
+                public AbstractPlayer createPlayer(Context context) {
+                    return MpvSupport.createPlayer(context, mpvHardware);
+                }
+            };
         } else {
             playerFactory = AndroidMediaPlayerFactory.create();
         }
@@ -127,14 +161,18 @@ public class PlayerHelper {
             renderType = LegacyPlaybackProfile.defaultRenderType(Build.VERSION.SDK_INT);
         }
         RenderViewFactory renderViewFactory = null;
-        switch (renderType) {
-            case 0:
-            default:
-                renderViewFactory = TextureRenderViewFactory.create();
-                break;
-            case 1:
-                renderViewFactory = SurfaceRenderViewFactory.create();
-                break;
+        if (playType == 20 && MpvSupport.isAvailable()) {
+            renderViewFactory = SurfaceRenderViewFactory.create();
+        } else {
+            switch (renderType) {
+                case 0:
+                default:
+                    renderViewFactory = TextureRenderViewFactory.create();
+                    break;
+                case 1:
+                    renderViewFactory = SurfaceRenderViewFactory.create();
+                    break;
+            }
         }
         videoView.setPlayerFactory(playerFactory);
         videoView.setRenderViewFactory(renderViewFactory);
@@ -157,6 +195,8 @@ public class PlayerHelper {
             return "Reex";
         } else if (playType == 12) {
             return "Kodi";
+        } else if (playType == 20) {
+            return MpvSupport.isAvailable() ? "MPV" : "Exo";
         } else {
             return "系统";
         }

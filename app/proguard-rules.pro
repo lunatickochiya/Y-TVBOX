@@ -327,3 +327,16 @@
 -keep class com.tencent.tbs.** { *; }
 -dontwarn com.tencent.smtt.**
 -dontwarn com.tencent.tbs.**
+
+# libmpv JNI 与事件回调
+-keep class is.xyz.mpv.** { *; }
+-keepclassmembers class is.xyz.mpv.** { native <methods>; }
+-dontwarn is.xyz.mpv.**
+
+# nextlib FFmpeg 软解
+-keep class io.github.anilbeesetti.nextlib.** { *; }
+-keepclassmembers class io.github.anilbeesetti.nextlib.** { native <methods>; }
+-dontwarn io.github.anilbeesetti.nextlib.**
+
+# Gecko/GeckoView 传递依赖的 snakeyaml 使用了桌面 JDK 的 java.beans
+-dontwarn java.beans.FeatureDescriptor

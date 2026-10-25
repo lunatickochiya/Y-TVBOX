@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.video.VideoRendererEventListener;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegAudioRenderer;
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegVideoRenderer;
 
 /**
@@ -68,6 +69,12 @@ public class LiveExoRenderersFactory extends DefaultRenderersFactory {
         // 仍按系统音频优先、FFmpeg 兜底选择, 与视频软/硬解模式无关.
         super.buildAudioRenderers(context, EXTENSION_RENDERER_MODE_ON, audioCodecSelector, enableDecoderFallback,
                 audioSink, eventHandler, eventListener, out);
+        // 系统音频解码器不支持 AC3/EAC3/DTS/TrueHD 等格式时, 用 nextlib 内置的 FFmpeg 音频解码兜底.
+        try {
+            out.add(new FfmpegAudioRenderer(eventHandler, eventListener, audioSink));
+        } catch (Throwable e) {
+            Log.w(TAG, "FFmpeg 音频软解渲染器加载失败, 仅使用系统音频: " + e);
+        }
     }
 
     @Override
