@@ -3,7 +3,7 @@
 Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox 同时安装。
 
 > **Android 版本要求**：`main` 分支的 exo 软解已升级到 nextlib 1.11.1（最低 API 23 /
-> Android 6.0），并新增 MPV 版。Android 5.0/5.1 设备请使用 `y-tvbox-android-5`
+> Android 6.0），并新增 MPV 版。Android 5.0/5.1 设备请使用 `live-android-5`
 > 分支（保留旧解码栈，minSdk 21）。
 
 ## 解码器（exo 花屏修复 / MPV）
@@ -16,6 +16,8 @@ Y-TVBOX 使用独立应用 ID `com.github.ytvbox.osc`，可以和原版 TVBox �
 - **MPV 版 APK**：文件名带 `-mpv`，额外内置 libmpv，直播「播放解码」会多出
   **mpv硬解 / mpv软解**。mpv 硬解使用 `mediacodec-copy`（兼容性优先），mpv 软解是纯
   FFmpeg；遇到 exo/系统硬解花屏的频道可直接切 MPV 对比。
+- MPV 原生库同时支持 **armeabi-v7a** 与 **arm64-v8a**；发布工作流两个 ABI 的
+  MPV 版都会构建（armeabi 约 45MB，arm64 约 47MB）。
 - 标准版与 MPV 版**同包名、同签名**，可直接覆盖安装并保留设置；标准版安装包约
   29MB，MPV 版约 47MB（arm64 release）。
 
