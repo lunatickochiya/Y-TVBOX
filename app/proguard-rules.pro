@@ -225,6 +225,10 @@
 
 # 支持影视的ali相关的jar
 -keep class com.google.gson.**{*;}
+# R8 8.x 水平类合并会把匿名 TypeToken 子类合并进 TypeToken 本体,
+# 导致 getGenericSuperclass() 拿不到泛型签名, 运行时报
+# "TypeToken must be created with a type argument" 且所有 Gson 解析失败
+-keep,allowobfuscation class * extends com.google.gson.reflect.TypeToken
 # 某些类会反射调用zxing导致生成阿里云二维码报错
 -keep class com.google.zxing.** {*;}
 #阿里云播放器
