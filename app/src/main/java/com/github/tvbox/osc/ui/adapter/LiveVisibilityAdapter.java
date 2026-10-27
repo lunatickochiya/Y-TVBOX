@@ -1,6 +1,7 @@
 package com.github.tvbox.osc.ui.adapter;
 
 import android.widget.CheckBox;
+import android.widget.TextView;
 
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.chad.library.adapter.base.BaseViewHolder;
@@ -22,14 +23,10 @@ public class LiveVisibilityAdapter extends BaseQuickAdapter<LiveVisibilityItem, 
     @Override
     protected void convert(BaseViewHolder holder, LiveVisibilityItem item) {
         CheckBox checkBox = holder.getView(R.id.cbVisible);
-        checkBox.setOnCheckedChangeListener(null);
         checkBox.setChecked(item.visible);
-        checkBox.setText(item.channelName);
-        checkBox.setTextColor(mContext.getResources().getColor(
+        TextView tvName = holder.getView(R.id.tvChannelName);
+        tvName.setText(item.channelName);
+        tvName.setTextColor(mContext.getResources().getColor(
                 item.visible ? R.color.color_FFFFFF : R.color.color_FFFFFF_70));
-        checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            // 只回显数据状态; 翻转由弹窗在 onItemClick 里驱动
-            if (isChecked != item.visible) checkBox.setChecked(item.visible);
-        });
     }
 }

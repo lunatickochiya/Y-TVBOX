@@ -4,14 +4,15 @@ import android.content.Context;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
+import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.bean.LiveChannelGroup;
 import com.github.tvbox.osc.bean.LiveVisibilityItem;
 import com.github.tvbox.osc.ui.adapter.LiveVisibilityGroupAdapter;
 import com.github.tvbox.osc.util.LiveChannelFilter;
-import com.owen.tvrecyclerview.widget.TvRecyclerView;
-import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -38,6 +39,10 @@ public class LiveGroupToggleDialog extends BaseDialog {
         setContentView(R.layout.dialog_live_group_toggle);
         TextView title = findViewById(R.id.tvVisibilityTitle);
         if (title != null) title.setText("分组开关 (取消勾选关闭分组)");
+        // 主题色需用 Activity 上下文取, 弹窗自身的 Context 是主题包装类不能强转
+        if (context instanceof com.github.tvbox.osc.base.BaseActivity) {
+            adapter.setSelectedColor(((com.github.tvbox.osc.base.BaseActivity) context).getThemeColor());
+        }
 
         List<String> hiddenGroups = LiveChannelFilter.getHiddenGroups();
         if (groups != null) {
@@ -50,26 +55,26 @@ public class LiveGroupToggleDialog extends BaseDialog {
             }
         }
 
-        TvRecyclerView list = findViewById(R.id.list);
+        RecyclerView list = findViewById(R.id.list);
         list.setHasFixedSize(true);
-        list.setLayoutManager(new V7LinearLayoutManager(context, V7LinearLayoutManager.VERTICAL, false));
+        list.setLayoutManager(new LinearLayoutManager(context, RecyclerView.VERTICAL, false));
         adapter = new LiveVisibilityGroupAdapter();
+        adapter.setNewData(items);
         list.setAdapter(adapter);
-        list.setOnItemListener(new TvRecyclerView.OnItemListener() {
+        // 点击行=翻转该分组
+        adapter.setOnItemClickListener(new BaseQuickAdapter.OnItemClickListener() {
             @Override
-            public void onItemPreSelected(TvRecyclerView parent, android.view.View itemView, int position) {
-            }
-
-            @Override
-            public void onItemSelected(TvRecyclerView parent, android.view.View itemView, int position) {
-            }
-
-            @Override
-            public void onItemClick(TvRecyclerView parent, android.view.View itemView, int position) {
+            public void onItemClick(BaseQuickAdapter adapter, android.view.View view, int position) {
                 toggleItem(position);
             }
         });
-        adapter.setNewData(items);
+        // 点击勾选框=翻转该分组
+        adapter.setOnItemChildClickListener(new BaseQuickAdapter.OnItemChildClickListener() {
+            @Override
+            public void onItemChildClick(BaseQuickAdapter adapter, android.view.View view, int position) {
+                toggleItem(position);
+            }
+        });
         findViewById(R.id.checkAll).setOnClickListener(v -> setAllVisible(true));
         findViewById(R.id.clearAll).setOnClickListener(v -> setAllVisible(false));
         findViewById(R.id.btnConfirm).setOnClickListener(v -> {
