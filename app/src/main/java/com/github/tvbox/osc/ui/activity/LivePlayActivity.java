@@ -58,6 +58,7 @@ import com.github.tvbox.osc.ui.dialog.LiveAboutDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBackupDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
 import com.github.tvbox.osc.ui.dialog.LiveChannelVisibilityDialog;
+import com.github.tvbox.osc.ui.dialog.CustomDohDialog;
 import com.github.tvbox.osc.ui.dialog.LiveGroupToggleDialog;
 import com.github.tvbox.osc.ui.dialog.LiveQrConfigDialog;
 import com.github.tvbox.osc.ui.dialog.LivePasswordDialog;
@@ -66,6 +67,7 @@ import com.github.tvbox.osc.util.EpgUtil;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.LiveChannelFilter;
+import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.HawkUtils;
 import com.github.tvbox.osc.util.PlaybackTaskQueue;
 import com.github.tvbox.osc.util.PlaybackRecovery;
@@ -78,6 +80,8 @@ import com.lzy.okgo.callback.AbsCallback;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
 import com.orhanobut.hawk.Hawk;
+
+import okhttp3.HttpUrl;
 import com.owen.tvrecyclerview.widget.TvRecyclerView;
 import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
 
@@ -2071,7 +2075,7 @@ public class LivePlayActivity extends BaseActivity {
 
     private void clickSettingItem(int position) {
         int settingGroupIndex = liveSettingGroupAdapter.getSelectedGroupIndex();
-        if (settingGroupIndex < 4) {
+        if (settingGroupIndex < 4 || settingGroupIndex == 5) {
             if (position == liveSettingItemAdapter.getSelectedItemIndex())
                 return;
             liveSettingItemAdapter.selectItem(position, true, true);
@@ -2175,7 +2179,15 @@ public class LivePlayActivity extends BaseActivity {
                 }
                 liveSettingItemAdapter.selectItem(position, select, false);
                 break;
-            case 5:// 直播配置: 扫码配置 / 直播地址 / EPG地址 / 频道显示 / 分组开关 / 备份设置
+            case 5://安全DNS: 单选即时生效; 自定义弹窗配置地址与引导IP
+                Hawk.put(HawkConfig.DOH_URL, position);
+                String dohUrl = OkGoHelper.getDohUrl(position);
+                OkGoHelper.dnsOverHttps.setUrl(dohUrl.isEmpty() ? null : HttpUrl.get(dohUrl));
+                OkGoHelper.dnsOverHttps.setBootstrapDnsHosts(OkGoHelper.getDohIps(position));
+                tv.danmaku.ijk.media.player.IjkMediaPlayer.toggleDotPort(position > 0);
+                if (position == OkGoHelper.getCustomDohIndex()) showCustomDohDialog();
+                break;
+            case 6:// 直播配置: 扫码配置 / 直播地址 / EPG地址 / 频道显示 / 分组开关 / 备份设置
                 switch (position) {
                     case 0:
                         showQrConfigDialog();
@@ -2197,7 +2209,7 @@ public class LivePlayActivity extends BaseActivity {
                         break;
                 }
                 break;
-            case 6:// 直播历史 takagen99 : Live History
+            case 7:// 直播历史 takagen99 : Live History
                 switch (position) {
                     case 0:
                         // takagen99 : Added Live History list selection - 直播列表
@@ -2234,7 +2246,7 @@ public class LivePlayActivity extends BaseActivity {
                         break;
                 }
                 break;
-            case 7:// 退出直播 takagen99 : Added Exit Option
+            case 8:// 退出直播 takagen99 : Added Exit Option
                 switch (position) {
                     case 0:
                         finish();
@@ -2402,7 +2414,7 @@ public class LivePlayActivity extends BaseActivity {
     }
 
     private void initLiveSettingGroupList() {
-        ArrayList<String> groupNames = new ArrayList<>(Arrays.asList("线路选择", "画面比例", "播放解码", "超时换源", "偏好设置", "直播配置", "直播历史", "退出直播"));
+        ArrayList<String> groupNames = new ArrayList<>(Arrays.asList("线路选择", "画面比例", "播放解码", "超时换源", "偏好设置", "安全DNS", "直播配置", "直播历史", "退出直播"));
         ArrayList<ArrayList<String>> itemsArrayList = new ArrayList<>();
         ArrayList<String> sourceItems = new ArrayList<>();
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
@@ -2413,6 +2425,7 @@ public class LivePlayActivity extends BaseActivity {
         }
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
         ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度", "开机自启", "关于"));
+        ArrayList<String> dnsItems = new ArrayList<>(OkGoHelper.dnsHttpsList);
         ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "分组开关", "备份设置"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
@@ -2421,6 +2434,7 @@ public class LivePlayActivity extends BaseActivity {
         itemsArrayList.add(playerDecoderItems);
         itemsArrayList.add(timeoutItems);
         itemsArrayList.add(personalSettingItems);
+        itemsArrayList.add(dnsItems);
         itemsArrayList.add(liveConfigItems);
         itemsArrayList.add(liveAdd);
         itemsArrayList.add(exitConfirm);
@@ -2448,6 +2462,9 @@ public class LivePlayActivity extends BaseActivity {
         liveSettingGroupList.get(4).getLiveSettingItems().get(4).setItemSelected(Hawk.get(HawkConfig.LIVE_SKIP_PASSWORD, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(5).setItemSelected(Hawk.get(HawkConfig.FCC_ENABLE, true));
         liveSettingGroupList.get(4).getLiveSettingItems().get(7).setItemSelected(Hawk.get(HawkConfig.BOOT_START_LIVE, true));
+        int dohSel = Hawk.get(HawkConfig.DOH_URL, 0);
+        ArrayList<LiveSettingItem> dnsItemList = liveSettingGroupList.get(5).getLiveSettingItems();
+        liveSettingGroupList.get(5).getLiveSettingItems().get(Math.min(dohSel, dnsItemList.size() - 1)).setItemSelected(true);
     }
 
     private void loadCurrentSourceList() {
@@ -2526,6 +2543,17 @@ public class LivePlayActivity extends BaseActivity {
                     liveChannelItemAdapter.setNewData(getLiveChannels(groupIndex));
                 }
             }
+        });
+        dialog.show();
+    }
+
+    /** 直播设置-安全DNS-自定义(DoH地址+可选引导IP) */
+    private void showCustomDohDialog() {
+        CustomDohDialog dialog = new CustomDohDialog(this);
+        dialog.setOnListener(() -> {
+            String dohUrl = OkGoHelper.getDohUrl(OkGoHelper.getCustomDohIndex());
+            OkGoHelper.dnsOverHttps.setUrl(dohUrl.isEmpty() ? null : HttpUrl.get(dohUrl));
+            OkGoHelper.dnsOverHttps.setBootstrapDnsHosts(OkGoHelper.getDohIps(OkGoHelper.getCustomDohIndex()));
         });
         dialog.show();
     }
