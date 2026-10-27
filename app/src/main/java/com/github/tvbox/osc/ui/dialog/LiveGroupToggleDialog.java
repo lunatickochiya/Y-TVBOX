@@ -8,7 +8,7 @@ import androidx.annotation.NonNull;
 import com.github.tvbox.osc.R;
 import com.github.tvbox.osc.bean.LiveChannelGroup;
 import com.github.tvbox.osc.bean.LiveVisibilityItem;
-import com.github.tvbox.osc.ui.adapter.LiveVisibilityAdapter;
+import com.github.tvbox.osc.ui.adapter.LiveVisibilityGroupAdapter;
 import com.github.tvbox.osc.util.LiveChannelFilter;
 import com.owen.tvrecyclerview.widget.TvRecyclerView;
 import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
@@ -30,12 +30,12 @@ public class LiveGroupToggleDialog extends BaseDialog {
     }
 
     private final List<LiveVisibilityItem> items = new ArrayList<>();
-    private LiveVisibilityAdapter adapter;
+    private LiveVisibilityGroupAdapter adapter;
 
     public LiveGroupToggleDialog(@NonNull @NotNull Context context, List<LiveChannelGroup> groups,
                                  final OnConfirmListener listener) {
         super(context);
-        setContentView(R.layout.dialog_live_visibility);
+        setContentView(R.layout.dialog_live_group_toggle);
         TextView title = findViewById(R.id.tvVisibilityTitle);
         if (title != null) title.setText("分组开关 (取消勾选关闭分组)");
 
@@ -53,14 +53,20 @@ public class LiveGroupToggleDialog extends BaseDialog {
         TvRecyclerView list = findViewById(R.id.list);
         list.setHasFixedSize(true);
         list.setLayoutManager(new V7LinearLayoutManager(context, V7LinearLayoutManager.VERTICAL, false));
-        adapter = new LiveVisibilityAdapter();
+        adapter = new LiveVisibilityGroupAdapter();
         list.setAdapter(adapter);
-        adapter.setOnToggleListener(new LiveVisibilityAdapter.OnToggleListener() {
+        list.setOnItemListener(new TvRecyclerView.OnItemListener() {
             @Override
-            public void onToggle(int position, boolean checked) {
-                if (position >= 0 && position < items.size()) {
-                    items.get(position).visible = checked;
-                }
+            public void onItemPreSelected(TvRecyclerView parent, android.view.View itemView, int position) {
+            }
+
+            @Override
+            public void onItemSelected(TvRecyclerView parent, android.view.View itemView, int position) {
+            }
+
+            @Override
+            public void onItemClick(TvRecyclerView parent, android.view.View itemView, int position) {
+                toggleItem(position);
             }
         });
         adapter.setNewData(items);
@@ -84,6 +90,12 @@ public class LiveGroupToggleDialog extends BaseDialog {
         for (LiveVisibilityItem item : items) {
             item.visible = visible;
         }
+        adapter.notifyDataSetChanged();
+    }
+
+    private void toggleItem(int position) {
+        if (position < 0 || position >= items.size()) return;
+        items.get(position).visible = !items.get(position).visible;
         adapter.notifyDataSetChanged();
     }
 }

@@ -1,7 +1,6 @@
 package com.github.tvbox.osc.ui.adapter;
 
 import android.widget.CheckBox;
-import android.widget.CompoundButton;
 
 import com.chad.library.adapter.base.BaseQuickAdapter;
 import com.chad.library.adapter.base.BaseViewHolder;
@@ -11,22 +10,13 @@ import com.github.tvbox.osc.bean.LiveVisibilityItem;
 import java.util.ArrayList;
 
 /**
- * 频道显示管理列表: 分组/频道 + 勾选框(勾选=显示).
+ * 频道显示管理右栏: 当前分组的频道行 (勾选=显示).
+ * 交互由弹窗的 TvRecyclerView 统一处理: OK/点击=翻转勾选.
  */
 public class LiveVisibilityAdapter extends BaseQuickAdapter<LiveVisibilityItem, BaseViewHolder> {
 
-    public interface OnToggleListener {
-        void onToggle(int position, boolean checked);
-    }
-
-    private OnToggleListener toggleListener;
-
     public LiveVisibilityAdapter() {
         super(R.layout.item_live_visibility, new ArrayList<>());
-    }
-
-    public void setOnToggleListener(OnToggleListener listener) {
-        this.toggleListener = listener;
     }
 
     @Override
@@ -34,23 +24,12 @@ public class LiveVisibilityAdapter extends BaseQuickAdapter<LiveVisibilityItem, 
         CheckBox checkBox = holder.getView(R.id.cbVisible);
         checkBox.setOnCheckedChangeListener(null);
         checkBox.setChecked(item.visible);
-        if (item.isGroup) {
-            checkBox.setText(item.channelCount > 0
-                    ? "▸ " + item.groupName + " (" + item.channelCount + ")"
-                    : "▸ " + item.groupName);
-            checkBox.setTextColor(mContext.getResources().getColor(R.color.color_FFFFFF));
-        } else {
-            checkBox.setText("      " + item.channelName);
-            checkBox.setTextColor(mContext.getResources().getColor(R.color.color_FFFFFF_70));
-        }
-        final int position = holder.getAdapterPosition();
-        checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (toggleListener != null && position >= 0) {
-                    toggleListener.onToggle(position, isChecked);
-                }
-            }
+        checkBox.setText(item.channelName);
+        checkBox.setTextColor(mContext.getResources().getColor(
+                item.visible ? R.color.color_FFFFFF : R.color.color_FFFFFF_70));
+        checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            // 只回显数据状态; 翻转由弹窗在 onItemClick 里驱动
+            if (isChecked != item.visible) checkBox.setChecked(item.visible);
         });
     }
 }
