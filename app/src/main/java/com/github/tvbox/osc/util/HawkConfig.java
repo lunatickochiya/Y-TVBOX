@@ -49,6 +49,8 @@ public class HawkConfig {
 
     // Other Settings
     public static final String DOH_URL = "doh_url";         // DNS
+    public static final String DOH_CUSTOM_URL = "doh_custom_url";   // 自定义安全DNS地址
+    public static final String DOH_CUSTOM_IPS = "doh_custom_ips";   // 自定义安全DNS引导IP, 逗号分隔
     public static final String DEFAULT_PARSE = "parse_default";
     public static final String PARSE_WEBVIEW = "parse_webview"; // true 系统 false xwalk
     public static final String PARSE_WEBVIEW_TYPE = "parse_webview_type"; // 0 系统 1 xwalk 2 x5(x5 版本)

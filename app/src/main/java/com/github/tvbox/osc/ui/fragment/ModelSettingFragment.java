@@ -29,6 +29,7 @@ import com.github.tvbox.osc.ui.dialog.AboutDialog;
 import com.github.tvbox.osc.ui.dialog.ApiDialog;
 import com.github.tvbox.osc.ui.dialog.ApiHistoryDialog;
 import com.github.tvbox.osc.ui.dialog.BackupDialog;
+import com.github.tvbox.osc.ui.dialog.CustomDohDialog;
 import com.github.tvbox.osc.ui.dialog.HomeIconDialog;
 import com.github.tvbox.osc.ui.dialog.MediaSettingDialog;
 import com.github.tvbox.osc.ui.dialog.ResetDialog;
@@ -104,6 +105,27 @@ public class ModelSettingFragment extends BaseLazyFragment {
     @Override
     protected int getLayoutResID() {
         return R.layout.fragment_model;
+    }
+
+    /** 选择「自定义」安全DNS: 弹出配置弹窗, 保存后立即应用。 */
+    private void selectCustomDoh() {
+        CustomDohDialog dialog = new CustomDohDialog(mActivity);
+        dialog.setOnListener(() -> {
+            int customIdx = OkGoHelper.getCustomDohIndex();
+            Hawk.put(HawkConfig.DOH_URL, customIdx);
+            tvDns.setText(OkGoHelper.dnsHttpsList.get(customIdx));
+            String url = OkGoHelper.getDohUrl(customIdx);
+            if (url.isEmpty()) {
+                // 自定义地址被清空: 视为关闭
+                OkGoHelper.dnsOverHttps.setUrl(null);
+                IjkMediaPlayer.toggleDotPort(false);
+            } else {
+                OkGoHelper.dnsOverHttps.setUrl(HttpUrl.get(url));
+                OkGoHelper.applyDohIps(null);
+                IjkMediaPlayer.toggleDotPort(true);
+            }
+        });
+        dialog.show();
     }
 
     @Override
@@ -572,6 +594,11 @@ public class ModelSettingFragment extends BaseLazyFragment {
                 dialog.setAdapter(null, new SelectDialogAdapter.SelectDialogInterface<String>() {
                     @Override
                     public void click(String value, int pos) {
+                        if (pos == OkGoHelper.getCustomDohIndex()) {
+                            dialog.dismiss();
+                            selectCustomDoh();
+                            return;
+                        }
                         tvDns.setText(OkGoHelper.dnsHttpsList.get(pos));
                         Hawk.put(HawkConfig.DOH_URL, pos);
                         String url = OkGoHelper.getDohUrl(pos);

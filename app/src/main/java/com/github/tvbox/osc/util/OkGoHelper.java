@@ -95,6 +95,9 @@ public class OkGoHelper {
 
 
     public static String getDohUrl(int type) {
+        if (type == getCustomDohIndex()) {
+            return Hawk.get(HawkConfig.DOH_CUSTOM_URL, "");
+        }
         switch (type) {
             case 1: {
                 return "https://doh.pub/dns-query";
@@ -115,8 +118,19 @@ public class OkGoHelper {
             case 6: {
                 return "https://dns.quad9.net/dns-query";
             }
+            case 7: {
+                return "https://cloudflare-dns.com/dns-query";
+            }
+            case 8: {
+                return "https://doh.opendns.com";
+            }
         }
         return "";
+    }
+
+    /** 「自定义」安全DNS在列表中的位置, 恒为最后一项。 */
+    public static int getCustomDohIndex() {
+        return dnsHttpsList.size() - 1;
     }
 
     static void initDnsOverHttps() {
@@ -127,6 +141,10 @@ public class OkGoHelper {
         dnsHttpsList.add("Google");
         dnsHttpsList.add("AdGuard");
         dnsHttpsList.add("Quad9");
+        dnsHttpsList.add("Cloudflare");
+        dnsHttpsList.add("OpenDNS");
+        // 「自定义」必须始终在列表末尾, 选择它的序号会写入 HawkConfig.DOH_URL
+        dnsHttpsList.add("自定义");
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor("OkExoPlayer");
         if (Hawk.get(HawkConfig.DEBUG_OPEN, false)) {
@@ -160,6 +178,21 @@ public class OkGoHelper {
      */
     @Nullable
     public static List<InetAddress> getDohIps(int type) {
+        if (type == getCustomDohIndex()) {
+            // 自定义: 引导IP存 Hawk, 逗号/分号/空格分隔, 可不填(走系统DNS引导)
+            String raw = Hawk.get(HawkConfig.DOH_CUSTOM_IPS, "");
+            if (raw == null || raw.trim().isEmpty()) return null;
+            try {
+                List<InetAddress> hosts = new ArrayList<>();
+                for (String ip : raw.split("[,;，；\\s]+")) {
+                    if (!ip.trim().isEmpty()) hosts.add(InetAddress.getByName(ip.trim()));
+                }
+                return hosts.isEmpty() ? null : hosts;
+            } catch (Throwable th) {
+                th.printStackTrace();
+                return null;
+            }
+        }
         String[] ips;
         switch (type) {
             case 1: // 腾讯 doh.pub
@@ -176,6 +209,12 @@ public class OkGoHelper {
                 break;
             case 6: // Quad9 dns.quad9.net
                 ips = new String[]{"9.9.9.9", "149.112.112.112"};
+                break;
+            case 7: // Cloudflare
+                ips = new String[]{"1.1.1.1", "1.0.0.1"};
+                break;
+            case 8: // OpenDNS
+                ips = new String[]{"208.67.222.222", "208.67.220.220"};
                 break;
             default: // 关闭 / 360 无可信固定 IP
                 return null;

@@ -158,7 +158,7 @@ public class App extends MultiDexApplication {
         putDefault(HawkConfig.THEME_SELECT, 0);              //主题: 0=奈飞, 1=哆啦, 2=百事, 3=鸣人, 4=小黄, 5=八神, 6=樱花
         putDefault(HawkConfig.SEARCH_VIEW, 1);               //搜索展示: 0=文字列表, 1=缩略图
         putDefault(HawkConfig.PARSE_WEBVIEW, true);          //嗅探Webview: true=系统自带, false=XWalkView
-        putDefault(HawkConfig.DOH_URL, 0);                   //安全DNS: 0=关闭, 1=腾讯, 2=阿里, 3=360, 4=Google, 5=AdGuard, 6=Quad9
+        putDefault(HawkConfig.DOH_URL, 0);                   //安全DNS: 0=关闭, 1=腾讯, 2=阿里, 3=360, 4=Google, 5=AdGuard, 6=Quad9, 7=Cloudflare, 8=OpenDNS, 9=自定义
         // 嗅探 WebView 类型: 0=系统自带, 1=XWalkView, 2=X5内核(仅 x5 版本)
         if (!Hawk.contains(HawkConfig.PARSE_WEBVIEW_TYPE)) {
             Hawk.put(HawkConfig.PARSE_WEBVIEW_TYPE, Hawk.get(HawkConfig.PARSE_WEBVIEW, true) ? 0 : 1);
