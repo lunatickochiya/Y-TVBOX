@@ -4,8 +4,11 @@ import static okhttp3.ConnectionSpec.CLEARTEXT;
 import static okhttp3.ConnectionSpec.COMPATIBLE_TLS;
 import static okhttp3.ConnectionSpec.MODERN_TLS;
 import static okhttp3.ConnectionSpec.RESTRICTED_TLS;
+import androidx.annotation.Nullable;
+
 import com.github.catvod.net.SSLCompat;
 import com.github.tvbox.osc.base.App;
+import com.github.tvbox.osc.bean.Doh;
 
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.https.HttpsUtils;
@@ -143,7 +146,81 @@ public class OkGoHelper {
         builder.cache(new Cache(new File(App.getInstance().getCacheDir().getAbsolutePath(), "dohcache"), 10 * 1024 * 1024));
         OkHttpClient dohClient = builder.build();
         String dohUrl = getDohUrl(Hawk.get(HawkConfig.DOH_URL, 0));
-        dnsOverHttps = new DnsOverHttps.Builder().client(dohClient).url(dohUrl.isEmpty() ? null : HttpUrl.get(dohUrl)).build();
+        int sel = Hawk.get(HawkConfig.DOH_URL, 0);
+        dnsOverHttps = new DnsOverHttps.Builder().client(dohClient)
+                .url(dohUrl.isEmpty() ? null : HttpUrl.get(dohUrl))
+                .bootstrapDnsHosts(getDohIps(sel))
+                .build();
+    }
+
+    /**
+     * 内置各安全DNS服务的固定 IP, 让 DoH 引导解析不依赖系统 DNS。
+     * 系统 DNS 不可用/极慢时 (如运营商 IPv6 DNS 失联, 每次解析要等超时回落),
+     * DoH 仍能立即工作。返回 null 表示该服务没有可信固定 IP, 走系统 DNS 引导。
+     */
+    @Nullable
+    public static List<InetAddress> getDohIps(int type) {
+        String[] ips;
+        switch (type) {
+            case 1: // 腾讯 doh.pub
+                ips = new String[]{"1.12.12.12", "120.53.53.53"};
+                break;
+            case 2: // 阿里 dns.alidns.com
+                ips = new String[]{"223.5.5.5", "223.6.6.6"};
+                break;
+            case 4: // Google dns.google
+                ips = new String[]{"8.8.8.8", "8.8.4.4"};
+                break;
+            case 5: // AdGuard dns.adguard.com
+                ips = new String[]{"94.140.14.140", "94.140.14.141"};
+                break;
+            case 6: // Quad9 dns.quad9.net
+                ips = new String[]{"9.9.9.9", "149.112.112.112"};
+                break;
+            default: // 关闭 / 360 无可信固定 IP
+                return null;
+        }
+        try {
+            List<InetAddress> hosts = new ArrayList<>();
+            for (String ip : ips) hosts.add(InetAddress.getByName(ip));
+            return hosts;
+        } catch (Throwable th) {
+            th.printStackTrace();
+            return null;
+        }
+    }
+
+    /** 配置最近一次源配置下发的 doh 列表, 供安全DNS切换时复用其 ips。 */
+    private static volatile List<Doh> configDohList = null;
+
+    /**
+     * 应用安全DNS引导 IP: 优先用源配置 doh 数组里同 url 条目的 ips,
+     * 其次用内置固定 IP。安全DNS为「关闭」时不做任何事。
+     *
+     * @param dohList 源配置里的 doh 数组; 传 null 则沿用上一次配置下发的列表
+     */
+    public static void applyDohIps(@Nullable List<Doh> dohList) {
+        try {
+            if (dohList != null) configDohList = dohList;
+            int sel = Hawk.get(HawkConfig.DOH_URL, 0);
+            if (sel <= 0 || dnsOverHttps == null) return;
+            String dohUrl = getDohUrl(sel);
+            if (dohUrl.isEmpty()) return;
+            List<InetAddress> hosts = null;
+            List<Doh> config = configDohList;
+            if (config != null) {
+                for (Doh item : config) {
+                    if (dohUrl.equals(item.getUrl())) {
+                        hosts = item.getHosts();
+                        break;
+                    }
+                }
+            }
+            if (hosts == null) hosts = getDohIps(sel);
+            dnsOverHttps.setBootstrapDnsHosts(hosts);
+        } catch (Throwable th) {
+            th.printStackTrace();
+        }
     }
 
     static OkHttpClient defaultClient = null;

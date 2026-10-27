@@ -576,6 +576,8 @@ public class ModelSettingFragment extends BaseLazyFragment {
                         Hawk.put(HawkConfig.DOH_URL, pos);
                         String url = OkGoHelper.getDohUrl(pos);
                         OkGoHelper.dnsOverHttps.setUrl(url.isEmpty() ? null : HttpUrl.get(url));
+                        // 切换后立刻更新引导 IP (配置 ips 优先, 否则内置固定 IP), 新服务无需系统 DNS 引导
+                        OkGoHelper.applyDohIps(null);
                         IjkMediaPlayer.toggleDotPort(pos > 0);
                     }
 

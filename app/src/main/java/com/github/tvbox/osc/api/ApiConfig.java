@@ -18,6 +18,7 @@ import com.github.tvbox.osc.bean.LiveChannelGroup;
 import com.github.tvbox.osc.bean.LiveChannelItem;
 import com.github.tvbox.osc.bean.ParseBean;
 import com.github.tvbox.osc.bean.SourceBean;
+import com.github.tvbox.osc.bean.Doh;
 import com.github.tvbox.osc.server.ControlManager;
 import com.github.tvbox.osc.ui.activity.HomeActivity;
 import com.github.tvbox.osc.util.AES;
@@ -28,6 +29,7 @@ import com.github.tvbox.osc.util.LatestRequest;
 import com.github.tvbox.osc.util.M3U8;
 import com.github.tvbox.osc.util.MD5;
 import com.github.tvbox.osc.util.FileUtils;
+import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.VideoParseRuler;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -47,6 +49,8 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -287,7 +291,17 @@ public class ApiConfig {
         return configRequests.commit(config, () -> jarRequests.commit(jar, mutation));
     }
 
+    /** jar 下载/加载/初始化专用单线程池: Init 可能阻塞数十秒, 不能占用调用线程 (尤其主线程)。 */
+    private final ExecutorService jarExecutor = Executors.newSingleThreadExecutor();
+
     public void loadJar(boolean useCache, String spider, LoadConfigCallback callback) {
+        // 缓存命中时原逻辑会在调用线程 (通常是主线程) 同步执行 jarLoader.load,
+        // 里面的 Init.init 可能阻塞几十秒, 造成首页加载卡死。挪到后台线程执行,
+        // 回调线程与下载路径一致, 上层回调已按主线程处理。
+        jarExecutor.execute(() -> loadJarInner(useCache, spider, callback));
+    }
+
+    private void loadJarInner(boolean useCache, String spider, LoadConfigCallback callback) {
         final long config = configRequests.current();
         final long jar = jarRequests.begin();
         OkGo.getInstance().cancelTag(jarRequestTag);
@@ -383,6 +397,9 @@ public class ApiConfig {
         jarCache = DefaultConfig.safeJsonString(infoJson, "jarCache", "true");
         // spider
         spider = DefaultConfig.safeJsonString(infoJson, "spider", "");
+        // doh: 源配置的安全DNS列表, 用其 ips 作为 DoH 引导解析, 系统DNS失联时安全DNS仍可用
+        OkGoHelper.applyDohIps(infoJson.has("doh") && infoJson.get("doh").isJsonArray()
+                ? Doh.arrayFrom(infoJson.get("doh").toString()) : null);
         // wallpaper
         wallpaper = DefaultConfig.safeJsonString(infoJson, "wallpaper", "");
         // 直播播放请求头

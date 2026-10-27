@@ -78,7 +78,12 @@ public class JarLoader {
                             }
                         });
                         initThread.start();
-                        initThread.join();
+                        // Init 可能做网络初始化 (下载域名配置等), 最多等 90s;
+                        // 超时则让启动流程继续, Init 在后台自行完成或失败
+                        initThread.join(90_000);
+                        if (initThread.isAlive()) {
+                            System.err.println("YJar Init.invoke timeout 90s, proceed without it");
+                        }
                         Log.i("JarLoader", "echo-自定义爬虫代码加载成功!");
                         success = true;
                         try {

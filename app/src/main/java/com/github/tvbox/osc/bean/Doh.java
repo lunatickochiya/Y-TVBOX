@@ -6,12 +6,10 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 
 import com.github.tvbox.osc.R;
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.annotations.SerializedName;
-import com.google.gson.reflect.TypeToken;
 
-import java.lang.reflect.Type;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,11 +17,8 @@ import java.util.List;
 
 public class Doh {
 
-    @SerializedName("name")
     private String name;
-    @SerializedName("url")
     private String url;
-    @SerializedName("ips")
     private List<String> ips;
 
     public static List<Doh> get(Context context) {
@@ -34,15 +29,31 @@ public class Doh {
         return items;
     }
 
-    public static Doh objectFrom(String str) {
-        Doh item = new Gson().fromJson(str, Doh.class);
-        return item == null ? new Doh() : item;
-    }
-
-    public static List<Doh> arrayFrom(JsonElement element) {
-        Type listType = new TypeToken<List<Doh>>() {}.getType();
-        List<Doh> items = new Gson().fromJson(element, listType);
-        return items == null ? new ArrayList<>() : items;
+    public static List<Doh> arrayFrom(String json) {
+        // 不走 Gson 反射: R8 水平类合并可能把 Doh 并进抽象类,
+        // Gson 反射实例化会抛 "Abstract classes can't be instantiated"
+        List<Doh> items = new ArrayList<>();
+        if (TextUtils.isEmpty(json)) return items;
+        try {
+            JSONArray arr = new JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject obj = arr.optJSONObject(i);
+                if (obj == null) continue;
+                Doh item = new Doh().name(obj.optString("name")).url(obj.optString("url"));
+                JSONArray ips = obj.optJSONArray("ips");
+                if (ips != null) {
+                    List<String> ipList = new ArrayList<>();
+                    for (int j = 0; j < ips.length(); j++) {
+                        String ip = ips.optString(j);
+                        if (!TextUtils.isEmpty(ip)) ipList.add(ip);
+                    }
+                    item.ips(ipList);
+                }
+                items.add(item);
+            }
+        } catch (Exception ignored) {
+        }
+        return items;
     }
 
     public Doh name(String name) {
@@ -52,6 +63,11 @@ public class Doh {
 
     public Doh url(String url) {
         this.url = url;
+        return this;
+    }
+
+    public Doh ips(List<String> ips) {
+        this.ips = ips;
         return this;
     }
 
@@ -88,6 +104,15 @@ public class Doh {
     @NonNull
     @Override
     public String toString() {
-        return new Gson().toJson(this);
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("name", getName());
+            obj.put("url", getUrl());
+            JSONArray ips = new JSONArray();
+            for (String ip : getIps()) ips.put(ip);
+            obj.put("ips", ips);
+        } catch (Exception ignored) {
+        }
+        return obj.toString();
     }
 }
