@@ -32,6 +32,8 @@ public class HawkConfig {
 
     // Other Settings
     public static final String DOH_URL = "doh_url";         // DNS
+    public static final String DOH_CUSTOM_URL = "doh_custom_url";   // 自定义安全DNS地址
+    public static final String DOH_CUSTOM_IPS = "doh_custom_ips";   // 自定义安全DNS引导IP, 逗号分隔
     public static final String THEME_SELECT = "theme_select";
     public static final String BACKGROUND_PLAY_TYPE = "background_play_type";
 

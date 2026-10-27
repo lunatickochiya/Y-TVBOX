@@ -61,8 +61,10 @@ import okio.ByteString;
 public class DnsOverHttps implements Dns {
     public static final MediaType DNS_MESSAGE = MediaType.get("application/dns-message");
     public static final int MAX_RESPONSE_SIZE = 64 * 1024;
-    private final OkHttpClient client;
-    private HttpUrl url;
+    private final OkHttpClient baseClient;
+    private volatile OkHttpClient client;
+    private volatile HttpUrl url;
+    private volatile List<InetAddress> bootstrapDnsHosts;
     private final boolean includeIPv6;
     private final boolean post;
     private final boolean resolvePrivateAddresses;
@@ -81,11 +83,48 @@ public class DnsOverHttps implements Dns {
         this.post = builder.post;
         this.resolvePrivateAddresses = builder.resolvePrivateAddresses;
         this.resolvePublicAddresses = builder.resolvePublicAddresses;
+        this.bootstrapDnsHosts = builder.bootstrapDnsHosts;
+        this.baseClient = builder.client;
         this.client = builder.client.newBuilder().dns(buildBootstrapClient(builder)).build();
     }
 
     public void setUrl(HttpUrl newUrl) {
+        setUrl(newUrl, true);
+    }
+
+    /**
+     * 更新 DoH 服务器地址, 并按需重建引导解析客户端。
+     * <p>BootstrapDns 绑定 DoH 服务器主机名, 只改 url 不重建会因主机名不匹配导致
+     * 引导解析始终抛 UnknownHostException。
+     *
+     * @param rebuild 引导 IP 跟随新地址重建时传 true
+     */
+    synchronized void setUrl(HttpUrl newUrl, boolean rebuild) {
         this.url = newUrl;
+        if (rebuild) rebuildClient();
+    }
+
+    /**
+     * 更新 DoH 引导解析用的固定 IP。设置后 DoH 服务器自身不再依赖系统 DNS 解析,
+     * 在系统 DNS 不可用或极慢的网络下 (如运营商 IPv6 DNS 失联) 仍能正常工作。
+     *
+     * @param hosts DoH 服务器固定 IP, 传 null 时回退为系统 DNS 引导
+     */
+    public synchronized void setBootstrapDnsHosts(@Nullable List<InetAddress> hosts) {
+        this.bootstrapDnsHosts = hosts;
+        rebuildClient();
+    }
+
+    private void rebuildClient() {
+        List<InetAddress> hosts = bootstrapDnsHosts;
+        Dns bootstrap;
+        if (url != null && hosts != null && !hosts.isEmpty()) {
+            bootstrap = new BootstrapDns(url.host(), hosts);
+        } else {
+            bootstrap = Dns.SYSTEM;
+        }
+        // newBuilder() 复用连接池/调度器, 重建对象本身开销可忽略
+        this.client = baseClient.newBuilder().dns(bootstrap).build();
     }
 
     private static Dns buildBootstrapClient(Builder builder) {
