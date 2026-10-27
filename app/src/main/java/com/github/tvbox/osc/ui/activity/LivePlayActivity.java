@@ -58,14 +58,15 @@ import com.github.tvbox.osc.ui.dialog.LiveAboutDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBackupDialog;
 import com.github.tvbox.osc.ui.dialog.LiveBrightnessDialog;
 import com.github.tvbox.osc.ui.dialog.LiveChannelVisibilityDialog;
+import com.github.tvbox.osc.ui.dialog.CustomDohDialog;
 import com.github.tvbox.osc.ui.dialog.LiveGroupToggleDialog;
 import com.github.tvbox.osc.ui.dialog.LiveQrConfigDialog;
-import com.github.tvbox.osc.ui.dialog.LivePasswordDialog;
 import com.github.tvbox.osc.ui.dialog.LiveUrlDialog;
 import com.github.tvbox.osc.util.EpgUtil;
 import com.github.tvbox.osc.util.FastClickCheckUtil;
 import com.github.tvbox.osc.util.HawkConfig;
 import com.github.tvbox.osc.util.LiveChannelFilter;
+import com.github.tvbox.osc.util.OkGoHelper;
 import com.github.tvbox.osc.util.HawkUtils;
 import com.github.tvbox.osc.util.PlaybackTaskQueue;
 import com.github.tvbox.osc.util.PlaybackRecovery;
@@ -78,6 +79,8 @@ import com.lzy.okgo.callback.AbsCallback;
 import com.lzy.okgo.callback.StringCallback;
 import com.lzy.okgo.model.Response;
 import com.orhanobut.hawk.Hawk;
+
+import okhttp3.HttpUrl;
 import com.owen.tvrecyclerview.widget.TvRecyclerView;
 import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
 
@@ -161,7 +164,6 @@ public class LivePlayActivity extends BaseActivity {
     private LiveSettingGroupAdapter liveSettingGroupAdapter;
     private LiveSettingItemAdapter liveSettingItemAdapter;
     private final LivePlayerManager livePlayerManager = new LivePlayerManager();
-    private final ArrayList<Integer> channelGroupPasswordConfirmed = new ArrayList<>();
     private int currentLiveChangeSourceTimes = 0;
 
     // Bottom Channel View
@@ -1857,9 +1859,6 @@ public class LivePlayActivity extends BaseActivity {
 
             @Override
             public void onItemClick(TvRecyclerView parent, View itemView, int position) {
-                if (isNeedInputPassword(position)) {
-                    showPasswordDialog(position, -1);
-                }
             }
         });
 
@@ -1878,12 +1877,8 @@ public class LivePlayActivity extends BaseActivity {
             liveChannelGroupAdapter.setFocusedGroupIndex(groupIndex);
             liveChannelItemAdapter.setFocusedChannelIndex(-1);
         }
-        if ((groupIndex > -1 && groupIndex != liveChannelGroupAdapter.getSelectedGroupIndex()) || isNeedInputPassword(groupIndex)) {
+        if (groupIndex > -1 && groupIndex != liveChannelGroupAdapter.getSelectedGroupIndex()) {
             liveChannelGroupAdapter.setSelectedGroupIndex(groupIndex);
-            if (isNeedInputPassword(groupIndex)) {
-                showPasswordDialog(groupIndex, liveChannelIndex);
-                return;
-            }
             loadChannelGroupDataAndPlay(groupIndex, liveChannelIndex);
         }
         if (tvLeftChannelListLayout.getVisibility() == View.VISIBLE) {
@@ -2071,7 +2066,7 @@ public class LivePlayActivity extends BaseActivity {
 
     private void clickSettingItem(int position) {
         int settingGroupIndex = liveSettingGroupAdapter.getSelectedGroupIndex();
-        if (settingGroupIndex < 4) {
+        if (settingGroupIndex < 4 || settingGroupIndex == 5) {
             if (position == liveSettingItemAdapter.getSelectedItemIndex())
                 return;
             liveSettingItemAdapter.selectItem(position, true, true);
@@ -2117,11 +2112,6 @@ public class LivePlayActivity extends BaseActivity {
                         Hawk.put(HawkConfig.LIVE_CROSS_GROUP, select);
                         break;
                     case 4:
-                        // takagen99 : Added Skip Password Option
-                        select = !Hawk.get(HawkConfig.LIVE_SKIP_PASSWORD, false);
-                        Hawk.put(HawkConfig.LIVE_SKIP_PASSWORD, select);
-                        break;
-                    case 5:
                         select = !Hawk.get(HawkConfig.FCC_ENABLE, true);
                         Hawk.put(HawkConfig.FCC_ENABLE, select);
                         if (!select) {
@@ -2129,53 +2119,28 @@ public class LivePlayActivity extends BaseActivity {
                         }
                         if (isCurrentLiveChannelValid()) replayChannel();
                         break;
-                    case 6://亮度
+                    case 5://亮度
                         showLiveBrightnessDialog();
                         return;
-                    case 7://开机自启(y-live 直接进直播, 没有点播设置页, 开关放这里)
+                    case 6://开机自启(y-live 直接进直播, 没有点播设置页, 开关放这里)
                         select = !Hawk.get(HawkConfig.BOOT_START_LIVE, true);
                         Hawk.put(HawkConfig.BOOT_START_LIVE, select);
                         break;
-                    case 8://关于(版本/编译时间/包名)
+                    case 7://关于(版本/编译时间/包名)
                         showAboutDialog();
                         return;
-//                    case 5:
-//                        // takagen99 : Added Live History list selection - 直播列表
-//                        ArrayList<String> liveHistory = Hawk.get(HawkConfig.LIVE_HISTORY, new ArrayList<String>());
-//                        if (liveHistory.isEmpty())
-//                            return;
-//                        String current = Hawk.get(HawkConfig.LIVE_URL, "");
-//                        int idx = 0;
-//                        if (liveHistory.contains(current))
-//                            idx = liveHistory.indexOf(current);
-//                        ApiHistoryDialog dialog = new ApiHistoryDialog(LivePlayActivity.this);
-//                        dialog.setTip(getString(R.string.dia_history_live));
-//                        dialog.setAdapter(new ApiHistoryDialogAdapter.SelectDialogInterface() {
-//                            @Override
-//                            public void click(String liveURL) {
-//                                Hawk.put(HawkConfig.LIVE_URL, liveURL);
-//                                liveChannelGroupList.clear();
-//                                try {
-//                                    liveURL = Base64.encodeToString(liveURL.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
-//                                    liveURL = "http://127.0.0.1:9978/proxy?do=live&type=txt&ext=" + liveURL;
-//                                    loadProxyLives(liveURL);
-//                                } catch (Throwable th) {
-//                                    th.printStackTrace();
-//                                }
-//                                dialog.dismiss();
-//                            }
-//
-//                            @Override
-//                            public void del(String value, ArrayList<String> data) {
-//                                Hawk.put(HawkConfig.LIVE_HISTORY, data);
-//                            }
-//                        }, liveHistory, idx);
-//                        dialog.show();
-//                        break;
                 }
                 liveSettingItemAdapter.selectItem(position, select, false);
                 break;
-            case 5:// 直播配置: 扫码配置 / 直播地址 / EPG地址 / 频道显示 / 分组开关 / 备份设置
+            case 5://安全DNS: 单选即时生效; 自定义弹窗配置地址与引导IP
+                Hawk.put(HawkConfig.DOH_URL, position);
+                String dohUrl = OkGoHelper.getDohUrl(position);
+                OkGoHelper.dnsOverHttps.setUrl(dohUrl.isEmpty() ? null : HttpUrl.get(dohUrl));
+                OkGoHelper.dnsOverHttps.setBootstrapDnsHosts(OkGoHelper.getDohIps(position));
+                tv.danmaku.ijk.media.player.IjkMediaPlayer.toggleDotPort(position > 0);
+                if (position == OkGoHelper.getCustomDohIndex()) showCustomDohDialog();
+                break;
+            case 6:// 直播配置: 扫码配置 / 直播地址 / EPG地址 / 频道显示 / 分组开关 / 备份设置
                 switch (position) {
                     case 0:
                         showQrConfigDialog();
@@ -2197,7 +2162,7 @@ public class LivePlayActivity extends BaseActivity {
                         break;
                 }
                 break;
-            case 6:// 直播历史 takagen99 : Live History
+            case 7:// 直播历史 takagen99 : Live History
                 switch (position) {
                     case 0:
                         // takagen99 : Added Live History list selection - 直播列表
@@ -2234,7 +2199,7 @@ public class LivePlayActivity extends BaseActivity {
                         break;
                 }
                 break;
-            case 7:// 退出直播 takagen99 : Added Exit Option
+            case 8:// 退出直播 takagen99 : Added Exit Option
                 switch (position) {
                     case 0:
                         finish();
@@ -2402,7 +2367,7 @@ public class LivePlayActivity extends BaseActivity {
     }
 
     private void initLiveSettingGroupList() {
-        ArrayList<String> groupNames = new ArrayList<>(Arrays.asList("线路选择", "画面比例", "播放解码", "超时换源", "偏好设置", "直播配置", "直播历史", "退出直播"));
+        ArrayList<String> groupNames = new ArrayList<>(Arrays.asList("线路选择", "画面比例", "播放解码", "超时换源", "偏好设置", "安全DNS", "直播配置", "直播历史", "退出直播"));
         ArrayList<ArrayList<String>> itemsArrayList = new ArrayList<>();
         ArrayList<String> sourceItems = new ArrayList<>();
         ArrayList<String> scaleItems = new ArrayList<>(Arrays.asList("默认", "16:9", "4:3", "填充", "原始", "裁剪"));
@@ -2412,7 +2377,8 @@ public class LivePlayActivity extends BaseActivity {
             playerDecoderItems.add("mpv软解");
         }
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
-        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "关闭密码", "FCC快速换台", "亮度", "开机自启", "关于"));
+        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "FCC快速换台", "亮度", "开机自启", "关于"));
+        ArrayList<String> dnsItems = new ArrayList<>(OkGoHelper.dnsHttpsList);
         ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "分组开关", "备份设置"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
         ArrayList<String> exitConfirm = new ArrayList<>(Arrays.asList("确定"));
@@ -2421,6 +2387,7 @@ public class LivePlayActivity extends BaseActivity {
         itemsArrayList.add(playerDecoderItems);
         itemsArrayList.add(timeoutItems);
         itemsArrayList.add(personalSettingItems);
+        itemsArrayList.add(dnsItems);
         itemsArrayList.add(liveConfigItems);
         itemsArrayList.add(liveAdd);
         itemsArrayList.add(exitConfirm);
@@ -2445,9 +2412,11 @@ public class LivePlayActivity extends BaseActivity {
         liveSettingGroupList.get(4).getLiveSettingItems().get(1).setItemSelected(Hawk.get(HawkConfig.LIVE_SHOW_NET_SPEED, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(2).setItemSelected(Hawk.get(HawkConfig.LIVE_CHANNEL_REVERSE, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(3).setItemSelected(Hawk.get(HawkConfig.LIVE_CROSS_GROUP, false));
-        liveSettingGroupList.get(4).getLiveSettingItems().get(4).setItemSelected(Hawk.get(HawkConfig.LIVE_SKIP_PASSWORD, false));
-        liveSettingGroupList.get(4).getLiveSettingItems().get(5).setItemSelected(Hawk.get(HawkConfig.FCC_ENABLE, true));
-        liveSettingGroupList.get(4).getLiveSettingItems().get(7).setItemSelected(Hawk.get(HawkConfig.BOOT_START_LIVE, true));
+        liveSettingGroupList.get(4).getLiveSettingItems().get(4).setItemSelected(Hawk.get(HawkConfig.FCC_ENABLE, true));
+        liveSettingGroupList.get(4).getLiveSettingItems().get(6).setItemSelected(Hawk.get(HawkConfig.BOOT_START_LIVE, true));
+        int dohSel = Hawk.get(HawkConfig.DOH_URL, 0);
+        ArrayList<LiveSettingItem> dnsItemList = liveSettingGroupList.get(5).getLiveSettingItems();
+        liveSettingGroupList.get(5).getLiveSettingItems().get(Math.min(dohSel, dnsItemList.size() - 1)).setItemSelected(true);
     }
 
     private void loadCurrentSourceList() {
@@ -2500,32 +2469,13 @@ public class LivePlayActivity extends BaseActivity {
         }
     };
 
-    private void showPasswordDialog(int groupIndex, int liveChannelIndex) {
-        if (tvLeftChannelListLayout.getVisibility() == View.VISIBLE)
-            mHandler.removeCallbacks(mHideChannelListRun);
-
-        LivePasswordDialog dialog = new LivePasswordDialog(this);
-        dialog.setOnListener(new LivePasswordDialog.OnListener() {
-            @Override
-            public void onChange(String password) {
-                if (password.equals(liveChannelGroupList.get(groupIndex).getGroupPassword())) {
-                    channelGroupPasswordConfirmed.add(groupIndex);
-                    loadChannelGroupDataAndPlay(groupIndex, liveChannelIndex);
-                } else {
-                    Toast.makeText(App.getInstance(), "密码错误", Toast.LENGTH_SHORT).show();
-                }
-
-                if (tvLeftChannelListLayout.getVisibility() == View.VISIBLE)
-                    mHandler.postDelayed(mHideChannelListRun, 6000);
-            }
-
-            @Override
-            public void onCancel() {
-                if (tvLeftChannelListLayout.getVisibility() == View.VISIBLE) {
-                    int groupIndex = liveChannelGroupAdapter.getSelectedGroupIndex();
-                    liveChannelItemAdapter.setNewData(getLiveChannels(groupIndex));
-                }
-            }
+    /** 直播设置-安全DNS-自定义(DoH地址+可选引导IP) */
+    private void showCustomDohDialog() {
+        CustomDohDialog dialog = new CustomDohDialog(this);
+        dialog.setOnListener(() -> {
+            String dohUrl = OkGoHelper.getDohUrl(OkGoHelper.getCustomDohIndex());
+            OkGoHelper.dnsOverHttps.setUrl(dohUrl.isEmpty() ? null : HttpUrl.get(dohUrl));
+            OkGoHelper.dnsOverHttps.setBootstrapDnsHosts(OkGoHelper.getDohIps(OkGoHelper.getCustomDohIndex()));
         });
         dialog.show();
     }
@@ -2549,29 +2499,8 @@ public class LivePlayActivity extends BaseActivity {
         }
     }
 
-    private boolean isNeedInputPassword(int groupIndex) {
-        return !liveChannelGroupList.get(groupIndex).getGroupPassword().isEmpty()
-                && !isPasswordConfirmed(groupIndex);
-    }
-
-    private boolean isPasswordConfirmed(int groupIndex) {
-        if (Hawk.get(HawkConfig.LIVE_SKIP_PASSWORD, false)) {
-            return true;
-        } else {
-            for (Integer confirmedNum : channelGroupPasswordConfirmed) {
-                if (confirmedNum == groupIndex)
-                    return true;
-            }
-            return false;
-        }
-    }
-
     private ArrayList<LiveChannelItem> getLiveChannels(int groupIndex) {
-        if (!isNeedInputPassword(groupIndex)) {
-            return liveChannelGroupList.get(groupIndex).getLiveChannels();
-        } else {
-            return new ArrayList<>();
-        }
+        return liveChannelGroupList.get(groupIndex).getLiveChannels();
     }
 
     private Integer[] getNextChannel(int direction) {

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 频道显示管理: 取消勾选隐藏分组/频道 -->
+<!-- 频道显示管理: 双栏, 左侧分组右侧频道, 取消勾选隐藏 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <LinearLayout
-        android:layout_width="@dimen/vs_640"
+        android:layout_width="@dimen/vs_720"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:background="@drawable/shape_dialog_bg_main"
@@ -28,11 +28,53 @@
             android:textSize="@dimen/ts_24"
             android:textStyle="bold" />
 
-        <com.owen.tvrecyclerview.widget.TvRecyclerView
-            android:id="@+id/list"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="@dimen/vs_600"
-            android:focusable="true" />
+            android:orientation="horizontal">
+
+            <!-- 左栏: 分组 -->
+            <FrameLayout
+                android:layout_width="@dimen/vs_260"
+                android:layout_height="match_parent">
+
+                <com.owen.tvrecyclerview.widget.TvRecyclerView
+                    android:id="@+id/listGroups"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:focusable="true" />
+            </FrameLayout>
+
+            <!-- 分隔线 -->
+            <View
+                android:layout_width="@dimen/vs_1"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="@dimen/vs_10"
+                android:layout_marginRight="@dimen/vs_10"
+                android:background="@color/color_000000_60" />
+
+            <!-- 右栏: 当前分组的频道 -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <com.owen.tvrecyclerview.widget.TvRecyclerView
+                    android:id="@+id/listChannels"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:focusable="true" />
+
+                <TextView
+                    android:id="@+id/tvEmptyChannel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="该分组没有频道"
+                    android:textColor="@color/color_FFFFFF_70"
+                    android:textSize="@dimen/ts_20"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
