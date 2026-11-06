@@ -197,6 +197,7 @@ public class LivePlayActivity extends BaseActivity {
     private boolean waitingForConnection;
     private boolean playbackFailed;
     private final Object liveListRequestTag = new Object();
+    private int liveSourceRequestVersion = 0;
     private static LiveChannelItem channel_Name = null;
     private static final Hashtable hsEpg = new Hashtable();
     private TextView tvTime;
@@ -519,11 +520,29 @@ public class LivePlayActivity extends BaseActivity {
         mHandler.postDelayed(mPlaySelectedChannel, 2000);
     }
 
+    /** 长按右键多久进入设置(部分遥控器没有菜单键/设置键, 或直播源一直连不上时用) */
+    private static final long RIGHT_LONG_PRESS_SETTINGS_MS = 600L;
+    private boolean rightLongPressHandled;
+
+    private final Runnable mRightLongPressOpenSettings = new Runnable() {
+        @Override
+        public void run() {
+            if (!isPlaybackAvailable() || tvRightSettingLayout.getVisibility() == View.VISIBLE) return;
+            rightLongPressHandled = true;
+            showSettingGroup();
+        }
+    };
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            int keyCode = event.getKeyCode();
-            if (keyCode == KeyEvent.KEYCODE_MENU) {
+            // 长按右键已经进入设置, 吃掉按键重复事件, 避免焦点在设置列表里乱跳
+            if (rightLongPressHandled && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                return true;
+            }
+            if ((keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS)
+                    && event.getRepeatCount() == 0) {
                 showSettingGroup();
             } else if (!isListOrSettingLayoutVisible()) {
                 switch (keyCode) {
@@ -549,11 +568,16 @@ public class LivePlayActivity extends BaseActivity {
                         }
                         break;
                     case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        if (!hasSeekableTimeline) {
-                            playNextSource();
-                        } else {
-                            showChannelInfo();
+                        if (event.getRepeatCount() == 0) {
+                            rightLongPressHandled = false;
+                            mHandler.removeCallbacks(mRightLongPressOpenSettings);
+                            mHandler.postDelayed(mRightLongPressOpenSettings, RIGHT_LONG_PRESS_SETTINGS_MS);
                         }
+                        if (!hasSeekableTimeline) {
+                            // 短按切线路, 长按进设置(直播源连不上一直转圈时可以换源)
+                            return true;
+                        }
+                        showChannelInfo();
                         break;
                     case KeyEvent.KEYCODE_DPAD_CENTER:
                     case KeyEvent.KEYCODE_ENTER:
@@ -572,6 +596,18 @@ public class LivePlayActivity extends BaseActivity {
                 }
             }
         } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                boolean longPressOpenedSettings = rightLongPressHandled;
+                rightLongPressHandled = false;
+                mHandler.removeCallbacks(mRightLongPressOpenSettings);
+                if (longPressOpenedSettings) {
+                    return true;
+                }
+                if (!isListOrSettingLayoutVisible() && !hasSeekableTimeline) {
+                    playNextSource();
+                    return true;
+                }
+            }
         }
         return super.dispatchKeyEvent(event);
     }
@@ -599,6 +635,8 @@ public class LivePlayActivity extends BaseActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        mHandler.removeCallbacks(mRightLongPressOpenSettings);
+        rightLongPressHandled = false;
         playbackPaused = !(supportsPiPMode() && isInPictureInPictureMode());
         if (playbackPaused) cancelPlaybackChecks();
         if (mVideoView != null) {
@@ -1386,23 +1424,38 @@ public class LivePlayActivity extends BaseActivity {
         Toast.makeText(mContext, "频道显示设置已更新", Toast.LENGTH_SHORT).show();
     }
 
+    /** 打开设置时默认聚焦的分组(没有频道时定位到「直播配置」, 方便直接换直播源) */
+    private int pendingSettingGroupFocusIndex = 0;
+    /** 设置面板正在做打开动画, 这期间不要响应切台/切线路按键 */
+    private boolean settingGroupOpening;
+
     //显示设置列表
     private void showSettingGroup() {
         mBack.setVisibility(View.INVISIBLE);
         if (tvLeftChannelListLayout.getVisibility() == View.VISIBLE) {
             mHandler.removeCallbacks(mHideChannelListRun);
             mHandler.post(mHideChannelListRun);
-        } else if (tvBottomLayout.getVisibility() == View.VISIBLE) {
-            mHandler.removeCallbacks(mHideChannelInfoRun);
-            mHandler.post(mHideChannelInfoRun);
         } else if (tvRightSettingLayout.getVisibility() == View.INVISIBLE) {
-            if (!isCurrentLiveChannelValid()) return;
+            // 底部频道信息正在显示时也直接打开设置, 避免直播源连不上转圈时按一次菜单只是关掉信息
+            if (tvBottomLayout.getVisibility() == View.VISIBLE) {
+                mHandler.removeCallbacks(mHideChannelInfoRun);
+                mHandler.post(mHideChannelInfoRun);
+            }
+            // 直播源还在加载时也允许打开设置, 否则 m3u 地址连不上会一直转圈, 无法换源
+            if (isLoading()) {
+                showSuccess();
+            }
+            boolean hasChannel = currentLiveChannelItem != null;
+            int defaultGroup = hasChannel ? 0 : 6;
+            pendingSettingGroupFocusIndex = defaultGroup;
             //重新载入默认状态
             loadCurrentSourceList();
             liveSettingGroupAdapter.setNewData(liveSettingGroupList);
-            selectSettingGroup(0, false);
-            mSettingGroupView.scrollToPosition(0);
-            mSettingItemView.scrollToPosition(currentLiveChannelItem.getSourceIndex());
+            selectSettingGroup(defaultGroup, false);
+            mSettingGroupView.scrollToPosition(defaultGroup);
+            mSettingItemView.scrollToPosition(hasChannel ? currentLiveChannelItem.getSourceIndex() : 0);
+            settingGroupOpening = true;
+            mHandler.removeCallbacks(mFocusAndShowSettingGroup);
             mHandler.postDelayed(mFocusAndShowSettingGroup, 200);
         } else {
             mBack.setVisibility(View.INVISIBLE);
@@ -1417,10 +1470,14 @@ public class LivePlayActivity extends BaseActivity {
             if (mSettingGroupView.isScrolling() || mSettingItemView.isScrolling() || mSettingGroupView.isComputingLayout() || mSettingItemView.isComputingLayout()) {
                 mHandler.postDelayed(this, 100);
             } else {
-                RecyclerView.ViewHolder holder = mSettingGroupView.findViewHolderForAdapterPosition(0);
+                RecyclerView.ViewHolder holder = mSettingGroupView.findViewHolderForAdapterPosition(pendingSettingGroupFocusIndex);
+                if (holder == null) {
+                    holder = mSettingGroupView.findViewHolderForAdapterPosition(0);
+                }
                 if (holder != null)
                     holder.itemView.requestFocus();
                 tvRightSettingLayout.setVisibility(View.VISIBLE);
+                settingGroupOpening = false;
                 tvRightSettingLayout.setAlpha(0.0f);
                 tvRightSettingLayout.setTranslationX(tvRightSettingLayout.getWidth() / 2);
                 tvRightSettingLayout.animate()
@@ -1970,7 +2027,6 @@ public class LivePlayActivity extends BaseActivity {
     }
 
     private void selectSettingGroup(int position, boolean focus) {
-        if (!isCurrentLiveChannelValid()) return;
         if (focus) {
             liveSettingGroupAdapter.setFocusedGroupIndex(position);
             liveSettingItemAdapter.setFocusedItemIndex(-1);
@@ -1983,7 +2039,9 @@ public class LivePlayActivity extends BaseActivity {
 
         switch (position) {
             case 0:
-                liveSettingItemAdapter.selectItem(currentLiveChannelItem.getSourceIndex(), true, false);
+                if (currentLiveChannelItem != null) {
+                    liveSettingItemAdapter.selectItem(currentLiveChannelItem.getSourceIndex(), true, false);
+                }
                 break;
             case 1:
                 liveSettingItemAdapter.selectItem(livePlayerManager.getLivePlayerScale(), true, true);
@@ -2054,13 +2112,16 @@ public class LivePlayActivity extends BaseActivity {
         }
         switch (settingGroupIndex) {
             case 0://线路切换
+                if (!isCurrentLiveChannelValid()) return;
                 currentLiveChannelItem.setSourceIndex(position);
                 playChannel(currentChannelGroupIndex, currentLiveChannelIndex, true);
                 break;
             case 1://画面比例
+                if (!isCurrentLiveChannelValid()) return;
                 livePlayerManager.changeLivePlayerScale(mVideoView, position, currentLiveChannelItem.getChannelName());
                 break;
             case 2://播放解码
+                if (!isCurrentLiveChannelValid()) return;
                 mVideoView.release();
                 liveDecodeFallbackTimes = 0;
                 mHandler.removeCallbacks(mCheckVideoOutputRun);
@@ -2232,7 +2293,14 @@ public class LivePlayActivity extends BaseActivity {
             finish();
             return;
         }
-        showLoading();
+        // 换源时取消上一次还没返回的请求, 避免旧源结果覆盖新源
+        OkGo.getInstance().cancelTag(liveListRequestTag);
+        final int requestVersion = ++liveSourceRequestVersion;
+        // 从设置里换源时不要把设置界面盖住; 只有首次进入/非设置界面加载才显示全屏转圈
+        final boolean settingsVisible = tvRightSettingLayout.getVisibility() == View.VISIBLE;
+        if (!settingsVisible) {
+            showLoading();
+        }
         OkGo.<String>get(url).tag(liveListRequestTag).execute(new AbsCallback<String>() {
 
             @Override
@@ -2242,7 +2310,7 @@ public class LivePlayActivity extends BaseActivity {
 
             @Override
             public void onSuccess(Response<String> response) {
-                if (!isPlaybackAvailable()) return;
+                if (!isPlaybackAvailable() || requestVersion != liveSourceRequestVersion) return;
                 JsonArray livesArray;
                 LinkedHashMap<String, LinkedHashMap<String, ArrayList<String>>> linkedHashMap = new LinkedHashMap<>();
                 HashMap<String, String> catchupMap = new HashMap<>();
@@ -2253,7 +2321,10 @@ public class LivePlayActivity extends BaseActivity {
                 List<LiveChannelGroup> list = ApiConfig.get().getChannelGroupList();
                 if (list.isEmpty()) {
                     Toast.makeText(App.getInstance(), getString(R.string.act_live_play_empty_channel), Toast.LENGTH_SHORT).show();
-                    finish();
+                    // 用户正在设置界面换源时不要直接退出直播, 否则没法改地址
+                    if (tvRightSettingLayout.getVisibility() != View.VISIBLE) {
+                        finish();
+                    }
                     return;
                 }
                 liveChannelGroupList.clear();
@@ -2273,10 +2344,13 @@ public class LivePlayActivity extends BaseActivity {
             @Override
             public void onError(Response<String> response) {
                 super.onError(response);
-                if (!isPlaybackAvailable()) return;
+                if (!isPlaybackAvailable() || requestVersion != liveSourceRequestVersion) return;
                 Toast.makeText(App.getInstance(), getString(R.string.act_live_play_network_error), Toast.LENGTH_LONG).show();
-                // y-live: 直播列表加载失败时不退出应用, 直接弹出配置框让用户改地址(纯直播版没有别的界面可去)
-                showQrConfigDialog();
+                // 用户正在设置界面换源时保留设置界面, 方便改地址重试
+                if (tvRightSettingLayout.getVisibility() != View.VISIBLE) {
+                    // y-live: 直播列表加载失败时不退出应用, 直接弹出配置框让用户改地址(纯直播版没有别的界面可去)
+                    showQrConfigDialog();
+                }
             }
         });
     }
@@ -2334,14 +2408,31 @@ public class LivePlayActivity extends BaseActivity {
         showTime();
         showNetSpeed();
         tvLeftChannelListLayout.setVisibility(View.INVISIBLE);
-        tvRightSettingLayout.setVisibility(View.INVISIBLE);
+        // 加载过程中用户可能已经打开设置, 不要把它一起关掉
+        if (tvRightSettingLayout.getVisibility() != View.VISIBLE) {
+            tvRightSettingLayout.setVisibility(View.INVISIBLE);
+        }
 
         liveChannelGroupAdapter.setNewData(liveChannelGroupList);
         selectChannelGroup(lastChannelGroupIndex, false, lastLiveChannelIndex);
+
+        // 用户是在加载期间打开的设置: 频道已经有了, 刷新「线路选择」里的线路列表
+        if (tvRightSettingLayout.getVisibility() == View.VISIBLE) {
+            loadCurrentSourceList();
+            if (liveSettingGroupAdapter.getSelectedGroupIndex() == 0) {
+                liveSettingItemAdapter.setNewData(liveSettingGroupList.get(0).getLiveSettingItems());
+                if (currentLiveChannelItem != null) {
+                    liveSettingItemAdapter.selectItem(currentLiveChannelItem.getSourceIndex(), true, false);
+                    mSettingItemView.scrollToPosition(currentLiveChannelItem.getSourceIndex());
+                }
+            }
+        }
     }
 
     private boolean isListOrSettingLayoutVisible() {
-        return tvLeftChannelListLayout.getVisibility() == View.VISIBLE || tvRightSettingLayout.getVisibility() == View.VISIBLE;
+        return settingGroupOpening
+                || tvLeftChannelListLayout.getVisibility() == View.VISIBLE
+                || tvRightSettingLayout.getVisibility() == View.VISIBLE;
     }
 
     private void initLiveSettingGroupList() {
@@ -2398,13 +2489,15 @@ public class LivePlayActivity extends BaseActivity {
     }
 
     private void loadCurrentSourceList() {
-        ArrayList<String> currentSourceNames = currentLiveChannelItem.getChannelSourceNames();
         ArrayList<LiveSettingItem> liveSettingItemList = new ArrayList<>();
-        for (int j = 0; j < currentSourceNames.size(); j++) {
-            LiveSettingItem liveSettingItem = new LiveSettingItem();
-            liveSettingItem.setItemIndex(j);
-            liveSettingItem.setItemName(currentSourceNames.get(j));
-            liveSettingItemList.add(liveSettingItem);
+        if (currentLiveChannelItem != null) {
+            ArrayList<String> currentSourceNames = currentLiveChannelItem.getChannelSourceNames();
+            for (int j = 0; j < currentSourceNames.size(); j++) {
+                LiveSettingItem liveSettingItem = new LiveSettingItem();
+                liveSettingItem.setItemIndex(j);
+                liveSettingItem.setItemName(currentSourceNames.get(j));
+                liveSettingItemList.add(liveSettingItem);
+            }
         }
         liveSettingGroupList.get(0).setLiveSettingItems(liveSettingItemList);
     }
