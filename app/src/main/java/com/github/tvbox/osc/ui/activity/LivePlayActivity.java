@@ -637,6 +637,13 @@ public class LivePlayActivity extends BaseActivity {
         super.onPause();
         mHandler.removeCallbacks(mRightLongPressOpenSettings);
         rightLongPressHandled = false;
+        // 退出/切后台时再记一次当前频道, 保证下次进入能恢复到实际观看的台
+        if (currentLiveChannelItem != null) {
+            Hawk.put(HawkConfig.LIVE_CHANNEL, currentLiveChannelItem.getChannelName());
+            if (currentChannelGroupIndex >= 0 && currentChannelGroupIndex < liveChannelGroupList.size()) {
+                HawkUtils.setLastLiveChannelGroup(liveChannelGroupList.get(currentChannelGroupIndex).getGroupName());
+            }
+        }
         playbackPaused = !(supportsPiPMode() && isInPictureInPictureMode());
         if (playbackPaused) cancelPlaybackChecks();
         if (mVideoView != null) {
@@ -2161,14 +2168,18 @@ public class LivePlayActivity extends BaseActivity {
                         }
                         if (isCurrentLiveChannelValid()) replayChannel();
                         break;
-                    case 5://亮度
+                    case 5:
+                        select = !Hawk.get(HawkConfig.LIVE_REMEMBER_LAST, true);
+                        Hawk.put(HawkConfig.LIVE_REMEMBER_LAST, select);
+                        break;
+                    case 6://亮度
                         showLiveBrightnessDialog();
                         return;
-                    case 6://开机自启(y-live 直接进直播, 没有点播设置页, 开关放这里)
+                    case 7://开机自启(y-live 直接进直播, 没有点播设置页, 开关放这里)
                         select = !Hawk.get(HawkConfig.BOOT_START_LIVE, true);
                         Hawk.put(HawkConfig.BOOT_START_LIVE, select);
                         break;
-                    case 7://关于(版本/编译时间/包名)
+                    case 8://关于(版本/编译时间/包名)
                         showAboutDialog();
                         return;
                 }
@@ -2394,14 +2405,25 @@ public class LivePlayActivity extends BaseActivity {
         int lastChannelGroupIndex = -1;
         int lastLiveChannelIndex = -1;
         Intent intent = getIntent();
-        if (intent != null && intent.getExtras() != null) {
-            Bundle bundle = intent.getExtras();
+        Bundle bundle = intent != null ? intent.getExtras() : null;
+        // 只有我们自己的“指定频道”启动参数才覆盖上次频道; 桌面/开机启动可能带其它 extras
+        boolean hasExplicitChannel = bundle != null
+                && bundle.containsKey("groupIndex")
+                && bundle.containsKey("channelIndex");
+        if (hasExplicitChannel) {
             lastChannelGroupIndex = bundle.getInt("groupIndex", 0);
             lastLiveChannelIndex = bundle.getInt("channelIndex", 0);
-        } else {
+        } else if (Hawk.get(HawkConfig.LIVE_REMEMBER_LAST, true)) {
             Pair<Integer, Integer> lastChannel = JavaUtil.findLiveLastChannel(liveChannelGroupList);
             lastChannelGroupIndex = lastChannel.getFirst();
             lastLiveChannelIndex = lastChannel.getSecond();
+        } else {
+            // 关闭“记住上次频道”后从第一个可用分组开始
+            lastChannelGroupIndex = getFirstNoPasswordChannelGroup();
+            lastLiveChannelIndex = 0;
+        }
+        if (lastChannelGroupIndex < 0 || lastChannelGroupIndex >= liveChannelGroupList.size()) {
+            lastChannelGroupIndex = 0;
         }
 
         livePlayerManager.init(mVideoView);
@@ -2446,7 +2468,7 @@ public class LivePlayActivity extends BaseActivity {
             playerDecoderItems.add("mpv软解");
         }
         ArrayList<String> timeoutItems = new ArrayList<>(Arrays.asList("关", "5s", "10s", "15s", "20s", "25s", "30s"));
-        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "FCC快速换台", "亮度", "开机自启", "关于"));
+        ArrayList<String> personalSettingItems = new ArrayList<>(Arrays.asList("显示时间", "显示网速", "换台反转", "跨选分类", "FCC快速换台", "记住上次频道", "亮度", "开机自启", "关于"));
         ArrayList<String> dnsItems = new ArrayList<>(OkGoHelper.dnsHttpsList);
         ArrayList<String> liveConfigItems = new ArrayList<>(Arrays.asList("扫码配置", "直播地址", "EPG地址", "频道显示", "备份设置"));
         ArrayList<String> liveAdd = new ArrayList<>(Arrays.asList("列表历史"));
@@ -2482,7 +2504,8 @@ public class LivePlayActivity extends BaseActivity {
         liveSettingGroupList.get(4).getLiveSettingItems().get(2).setItemSelected(Hawk.get(HawkConfig.LIVE_CHANNEL_REVERSE, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(3).setItemSelected(Hawk.get(HawkConfig.LIVE_CROSS_GROUP, false));
         liveSettingGroupList.get(4).getLiveSettingItems().get(4).setItemSelected(Hawk.get(HawkConfig.FCC_ENABLE, true));
-        liveSettingGroupList.get(4).getLiveSettingItems().get(6).setItemSelected(Hawk.get(HawkConfig.BOOT_START_LIVE, true));
+        liveSettingGroupList.get(4).getLiveSettingItems().get(5).setItemSelected(Hawk.get(HawkConfig.LIVE_REMEMBER_LAST, true));
+        liveSettingGroupList.get(4).getLiveSettingItems().get(7).setItemSelected(Hawk.get(HawkConfig.BOOT_START_LIVE, true));
         int dohSel = Hawk.get(HawkConfig.DOH_URL, 0);
         ArrayList<LiveSettingItem> dnsItemList = liveSettingGroupList.get(5).getLiveSettingItems();
         liveSettingGroupList.get(5).getLiveSettingItems().get(Math.min(dohSel, dnsItemList.size() - 1)).setItemSelected(true);
